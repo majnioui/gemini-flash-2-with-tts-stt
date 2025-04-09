@@ -5,56 +5,152 @@ class TextToSpeech {
     constructor() {
         this.synth = window.speechSynthesis;
         this.voice = null;
+        this.voices = [];
         this.isSpeaking = false;
         this.onStartCallback = null;
         this.onEndCallback = null;
         this.utteranceQueue = [];
         this.currentUtterance = null;
         this.debugMode = true; // Enable debug logging
+
+        // Default voice settings
+        this.defaultRate = 1.0;
+        this.defaultPitch = 1.0;
+        this.defaultVolume = 1.0;
+
+        // Voice preferences
+        this.preferFemale = true; // Prefer female voice if available
+        this.preferredLanguage = 'en'; // Prefer English voices
+
         this.initVoices();
     }
 
     initVoices() {
         // Wait for voices to be loaded
         if (this.synth.onvoiceschanged !== undefined) {
-            this.synth.onvoiceschanged = this.setVoice.bind(this);
+            this.synth.onvoiceschanged = this.loadVoices.bind(this);
         } else {
-            this.setVoice();
+            // For browsers that don't support onvoiceschanged
+            setTimeout(() => this.loadVoices(), 100);
         }
     }
 
-    setVoice() {
+    loadVoices() {
         // Get all available voices
-        const voices = this.synth.getVoices();
+        this.voices = this.synth.getVoices();
 
-        if (voices.length === 0) {
-            setTimeout(() => this.setVoice(), 200);
+        if (this.voices.length === 0) {
+            // If voices aren't available yet, try again
+            setTimeout(() => this.loadVoices(), 200);
             return;
         }
 
-        // Prefer a female voice for the AI
-        this.voice = voices.find(voice =>
-            voice.lang.includes('en') && voice.name.includes('Female')
-        );
+        if (this.debugMode) {
+            console.log(`TTS: Loaded ${this.voices.length} voices`);
+            this.voices.forEach((voice, i) => {
+                console.log(`Voice ${i}: ${voice.name} (${voice.lang}) ${voice.default ? '- DEFAULT' : ''}`);
+            });
+        }
 
-        // Fallback to any English voice
+        this.setVoice();
+    }
+
+    setVoice(voiceName = null) {
+        // If a specific voice name is provided, try to use it
+        if (voiceName) {
+            const requestedVoice = this.voices.find(v => v.name === voiceName);
+            if (requestedVoice) {
+                this.voice = requestedVoice;
+                if (this.debugMode) console.log(`TTS: Set voice to requested: ${this.voice.name}`);
+                return;
+            } else if (this.debugMode) {
+                console.warn(`TTS: Requested voice "${voiceName}" not found`);
+            }
+        }
+
+        // Strategy for selecting voice:
+        // 1. Try to find a female voice in preferred language if that's our preference
+        // 2. Any voice in the preferred language
+        // 3. System default voice
+        // 4. First voice in the list
+
+        if (this.preferFemale) {
+            // Look for a female voice containing "female" in the name
+            this.voice = this.voices.find(voice =>
+                voice.lang.includes(this.preferredLanguage) &&
+                (voice.name.toLowerCase().includes('female') || voice.name.includes('woman'))
+            );
+
+            if (this.voice && this.debugMode) {
+                console.log('TTS: Selected female voice:', this.voice.name);
+            }
+        }
+
+        // If no female voice found (or not preferred), look for any voice in preferred language
         if (!this.voice) {
-            this.voice = voices.find(voice => voice.lang.includes('en'));
+            this.voice = this.voices.find(voice => voice.lang.includes(this.preferredLanguage));
+
+            if (this.voice && this.debugMode) {
+                console.log(`TTS: Selected ${this.preferredLanguage} voice:`, this.voice.name);
+            }
         }
 
-        // Fallback to any voice
-        if (!this.voice && voices.length > 0) {
-            this.voice = voices[0];
+        // If still no voice, try the browser's default
+        if (!this.voice) {
+            this.voice = this.voices.find(voice => voice.default === true);
+
+            if (this.voice && this.debugMode) {
+                console.log('TTS: Selected browser default voice:', this.voice.name);
+            }
         }
+
+        // Last resort: use the first voice
+        if (!this.voice && this.voices.length > 0) {
+            this.voice = this.voices[0];
+
+            if (this.debugMode) {
+                console.log('TTS: Using first available voice:', this.voice.name);
+            }
+        }
+
+        if (!this.voice) {
+            console.error('TTS: No voices available!');
+        }
+    }
+
+    getAvailableVoices() {
+        return this.voices.map(voice => ({
+            name: voice.name,
+            lang: voice.lang,
+            default: voice.default
+        }));
+    }
+
+    setPreferences(preferences = {}) {
+        if (preferences.rate !== undefined) this.defaultRate = preferences.rate;
+        if (preferences.pitch !== undefined) this.defaultPitch = preferences.pitch;
+        if (preferences.volume !== undefined) this.defaultVolume = preferences.volume;
+        if (preferences.preferFemale !== undefined) this.preferFemale = preferences.preferFemale;
+        if (preferences.preferredLanguage !== undefined) this.preferredLanguage = preferences.preferredLanguage;
+
+        // Re-select voice based on new preferences
+        this.setVoice();
 
         if (this.debugMode) {
-            console.log('TTS: Voice set to:', this.voice ? this.voice.name : 'Default voice');
+            console.log('TTS: Updated preferences', {
+                rate: this.defaultRate,
+                pitch: this.defaultPitch,
+                volume: this.defaultVolume,
+                preferFemale: this.preferFemale,
+                preferredLanguage: this.preferredLanguage,
+                selectedVoice: this.voice ? this.voice.name : 'None'
+            });
         }
     }
 
     speak(text, onStart, onEnd) {
         if (this.debugMode) {
-            console.log('TTS: Starting speech with text:', text.substring(0, 20) + '...');
+            console.log('TTS: Starting speech with text:', text.substring(0, 20) + (text.length > 20 ? '...' : ''));
         }
 
         if (!this.synth) {
@@ -83,9 +179,9 @@ class TextToSpeech {
 
             const utterance = new SpeechSynthesisUtterance(sentence);
             utterance.voice = this.voice;
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            utterance.volume = 1.0;
+            utterance.rate = this.defaultRate;
+            utterance.pitch = this.defaultPitch;
+            utterance.volume = this.defaultVolume;
 
             // Only add callbacks to the first and last utterances
             if (i === 0) {
@@ -211,9 +307,38 @@ class TextToSpeech {
         }
     }
 
+    pause() {
+        if (this.synth && this.isSpeaking) {
+            this.synth.pause();
+            if (this.debugMode) console.log('TTS: Speech paused');
+
+            // Optionally pause animation too
+            if (window.avatar) {
+                window.avatar.pauseTalking();
+            }
+        }
+    }
+
+    resume() {
+        if (this.synth) {
+            this.synth.resume();
+            if (this.debugMode) console.log('TTS: Speech resumed');
+
+            // Resume animation too
+            if (window.avatar) {
+                window.avatar.startTalking();
+            }
+        }
+    }
+
     setCallbacks(onStart, onEnd) {
         this.onStartCallback = onStart;
         this.onEndCallback = onEnd;
+    }
+
+    setDebugMode(enabled) {
+        this.debugMode = enabled;
+        console.log(`TTS: Debug mode ${enabled ? 'enabled' : 'disabled'}`);
     }
 }
 
