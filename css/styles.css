@@ -26,6 +26,7 @@ body {
     align-items: center;
     padding: 15px 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 10px;
 }
 
 .controls {
@@ -454,6 +455,21 @@ button {
     height: 40px;
     width: auto;
     object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    transition: transform 0.3s ease;
+}
+
+.company-logo:hover {
+    transform: scale(1.05);
+}
+
+.logo-container h1 {
+    margin-left: 10px;
+    font-size: 1.8rem;
+    background: linear-gradient(90deg, #4cc9f0, #f72585);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 2px 10px rgba(76, 201, 240, 0.3);
 }
 
 /* For smaller screens, adjust logo size */
