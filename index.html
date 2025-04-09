@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Greeter - Gitex Africa</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script>
+        // Show warning if not on HTTPS and not localhost
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if we're running on localhost or with HTTPS
+            const isLocalhost = window.location.hostname === 'localhost' ||
+                               window.location.hostname === '127.0.0.1' ||
+                               window.location.hostname === '[::1]';
+            const isSecure = window.location.protocol === 'https:';
+
+            // Only show warning if not on localhost and not using HTTPS
+            if (!isSecure && !isLocalhost) {
+                var warning = document.createElement('div');
+                warning.className = 'https-warning';
+                warning.innerHTML = 'For full functionality including speech recognition, please access this app over HTTPS.';
+                document.body.prepend(warning);
+
+                console.warn('Not running on secure context. Speech recognition may not work.');
+            } else {
+                console.log('Running on ' + (isLocalhost ? 'localhost' : 'HTTPS') + ' - speech recognition should work.');
+            }
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI Greeter - Gitex Africa</h1>
+            <div class="controls">
+                <button id="welcomeBtn" class="primary-btn">Trigger Welcome</button>
+                <button id="resetBtn" class="secondary-btn">Reset</button>
+            </div>
+        </div>
+
+        <div class="avatar-container">
+            <div id="avatar">
+                <!-- Avatar animation will be shown here -->
+                <img src="public/robot-avatar.gif" alt="AI Avatar" id="avatar-img">
+                <div class="speech-indicator" id="speech-indicator"></div>
+            </div>
+        </div>
+
+        <div class="interaction-area">
+            <div class="messages" id="messages">
+                <!-- Messages will appear here -->
+            </div>
+
+            <div class="input-area">
+                <button id="micBtn" class="mic-btn">
+                    <span class="mic-icon">🎤</span>
+                </button>
+                <div id="speech-status">Click microphone to speak</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/gemini.js"></script>
+    <script src="js/tts.js"></script>
+    <script src="js/stt.js"></script>
+    <script src="js/conversation.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
