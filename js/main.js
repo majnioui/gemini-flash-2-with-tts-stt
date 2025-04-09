@@ -674,6 +674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Clear UI state
         micBtn.classList.remove('listening');
+        micBtn.classList.remove('active-speech');
 
         // Stop avatar animation on error
         if (window.avatar) {
@@ -683,6 +684,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show a user-friendly error message
         let errorMessage = 'Error with speech recognition. Try again.';
+        let shouldShowErrorInChat = true; // Whether to show error in chat
 
         switch(error) {
             case 'network':
@@ -699,6 +701,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 break;
             case 'no-speech':
                 errorMessage = 'No speech detected. Please try again.';
+                // For no-speech errors, show fewer messages to avoid spam
+                shouldShowErrorInChat = (speechRecognitionFailures <= 1);
+                break;
+            case 'no-speech-reset':
+                errorMessage = 'Speech recognition reset due to silence.';
+                // Don't increment failure count for resets
+                speechRecognitionFailures--;
+                shouldShowErrorInChat = false;
                 break;
             case 'not-supported':
                 errorMessage = 'Speech recognition is not supported in this browser.';
@@ -717,26 +727,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         updateSpeechStatus(errorMessage, '#f72585');
 
-        // Count consecutive errors
-        speechRecognitionFailures++;
+        // Count consecutive errors, but don't count certain error types
+        if (error !== 'no-speech-reset') {
+            speechRecognitionFailures++;
+        }
 
         // Show error in chat for first error only to avoid spam
-        if (speechRecognitionFailures === 1) {
+        if (shouldShowErrorInChat && speechRecognitionFailures <= 2) {
             addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
         }
 
-        // Switch to text input after multiple failures
-        if (speechRecognitionFailures >= 2) {
+        // Switch to text input after multiple failures of serious errors
+        if (speechRecognitionFailures >= 3) {
             setTimeout(() => {
                 addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
                 toggleManualInput();
+
+                // Disable continuous mode when switching to manual input
+                if (window.stt) {
+                    window.stt.setContinuous(false);
+                }
             }, 500);
         }
 
-        // Reset status text after a few seconds
-        setTimeout(() => {
-            updateSpeechStatus('Click microphone to speak');
-        }, 4000);
+        // Reset status text after a few seconds, unless we have too many failures
+        if (speechRecognitionFailures < 3) {
+            setTimeout(() => {
+                if (config.continuousListening && window.stt && window.stt.continuous) {
+                    updateSpeechStatus('Listening continuously...', '#4cc9f0');
+                } else {
+                    updateSpeechStatus('Click microphone to speak');
+                }
+            }, 4000);
+        }
     }
 
     function addMessage(text, sender, extraClass = '') {

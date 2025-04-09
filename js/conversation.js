@@ -6,7 +6,7 @@ class Conversation {
         // Predefined welcome messages
         this.welcomeMessages = [
             "Hello and welcome to Gitex Africa",
-            "Hello and welcome to Atlas Cloud Services stand here at Gitex",
+            "Hello and welcome to Atlas Cloud Services stand here at Gitex Africa",
             "Hello there, welcome to Gitex Africa 2025"
         ];
 
@@ -34,7 +34,6 @@ class Conversation {
             VERY IMPORTANT INSTRUCTIONS:
             - Keep all responses extremely brief - no more than 1-2 short sentences
             - NEVER introduce yourself or mention all our services in one response
-            - For greetings like "hello" or "hi", just say "Welcome to Atlas Cloud Services at Gitex Africa! How can I help you?"
             - Avoid lengthy explanations - be direct and simple - and never cut off mid-sentence
             - Don't list multiple services unless specifically asked
             - Speak in a friendly but extremely concise tone

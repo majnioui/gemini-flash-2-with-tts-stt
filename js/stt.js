@@ -222,16 +222,63 @@ class SpeechToText {
             console.error('Recognition error:', event.error);
             this.isListening = false;
 
+            // Track consecutive errors of the same type
+            if (!this.errorCounts) {
+                this.errorCounts = {};
+            }
+
+            // Increment error count for this type
+            this.errorCounts[event.error] = (this.errorCounts[event.error] || 0) + 1;
+
+            // Log error count
+            console.log(`Speech recognition error '${event.error}' count: ${this.errorCounts[event.error]}`);
+
+            // Special handling for no-speech errors which are common
+            if (event.error === 'no-speech') {
+                // If we get too many consecutive no-speech errors, we may need to reset
+                if (this.errorCounts['no-speech'] > 3) {
+                    console.log('Too many consecutive no-speech errors - will reset recognition');
+
+                    // Reset error count
+                    this.errorCounts['no-speech'] = 0;
+
+                    // Delay restart to avoid rapid cycling
+                    setTimeout(() => {
+                        if (this.continuous) {
+                            this.start();
+                        }
+                    }, 2000);
+
+                    if (this.onErrorCallback) {
+                        this.onErrorCallback('no-speech-reset');
+                    }
+                    return;
+                }
+            } else {
+                // Reset no-speech error count when we get a different error
+                this.errorCounts['no-speech'] = 0;
+            }
+
             if (this.onErrorCallback) this.onErrorCallback(event.error);
 
             // In continuous mode, try to restart after certain errors
             if (this.continuous && !this.recognition.continuous) {
+                // Never restart after not-allowed or audio-capture errors
+                // These require user intervention
                 if (event.error !== 'not-allowed' && event.error !== 'audio-capture') {
                     console.log('Continuous mode active - restarting after error');
-                    // Add a delay to avoid rapid restarts
+
+                    // Add a delay to avoid rapid restarts, longer for recurring errors
+                    const delay = this.errorCounts[event.error] > 1 ? 2000 : 1000;
+
                     setTimeout(() => {
-                        this.start();
-                    }, 1000);
+                        // Check if we're still in continuous mode before restarting
+                        if (this.continuous && !this.isListening) {
+                            this.start();
+                        }
+                    }, delay);
+                } else {
+                    console.log(`Not restarting after ${event.error} error - requires user action`);
                 }
             }
         };
