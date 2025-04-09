@@ -18,12 +18,12 @@ class Conversation {
 
         // Company information to inform AI responses
         this.companyContext = `
-            You are an AI assistant at Atlas Cloud Services booth at Gitex Africa 2025.
+            You are an AI assistant at Atlas Cloud Services stand at Gitex Africa 2025.
 
             Important event details:
             - GITEX AFRICA is being held from April 14-16, 2025
             - It's the largest tech and startup event in Africa
-            - The event is hosted in Morocco
+            - The event is hosted in Morocco, Marrakech city
             - This is a major digital economy and tech exhibition
 
             Company information:
