@@ -12,6 +12,8 @@ class SpeechToText {
         this.onErrorCallback = null;
         this.restartTimeout = null;
         this.networkErrorCount = 0;
+        this.maxNetworkRetries = 1; // Only retry once on network errors
+        this.failureThreshold = 2; // After 2 failures, report unavailable
         this.isSupported = this.checkBrowserSupport();
 
         // Only initialize if the API is supported
@@ -45,7 +47,8 @@ class SpeechToText {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             this.recognition = new SpeechRecognition();
             this.recognition.continuous = false;
-            this.recognition.interimResults = false;
+            this.recognition.interimResults = true; // Enable interim results for better user feedback
+            this.recognition.maxAlternatives = 3; // Get multiple alternatives
             this.recognition.lang = 'en-US';
 
             // Event handlers
@@ -81,26 +84,25 @@ class SpeechToText {
                 console.error('Speech recognition error', event.error);
                 this.isListening = false;
 
-                // Handle network errors, but don't auto-restart
+                // Handle network errors
                 if (event.error === 'network') {
                     this.networkErrorCount++;
                     console.log(`Network error detected (${this.networkErrorCount})`);
 
-                    // Only try to restart once if we get network errors
-                    if (this.networkErrorCount === 1) {
-                        console.log('First network error, will try once more...');
+                    // Only try to restart if below max retries
+                    if (this.networkErrorCount <= this.maxNetworkRetries) {
+                        console.log(`Network error retry ${this.networkErrorCount}/${this.maxNetworkRetries}...`);
                         this.restartTimeout = setTimeout(() => {
                             this.start();
-                        }, 1000);
+                        }, 1500); // Longer delay for network retry
                     } else {
-                        console.log('Multiple network errors, giving up auto-restart');
+                        console.log('Maximum network retries reached, giving up auto-restart');
                         if (this.onErrorCallback) {
-                            this.onErrorCallback('Speech recognition unavailable. Check your internet connection or try again later.');
+                            // After multiple network errors, suggest switching to manual input
+                            this.onErrorCallback('Speech recognition unavailable due to network connectivity issues. Please switch to text input.');
                         }
                     }
                 } else {
-                    // Reset network error count for other types of errors
-                    this.networkErrorCount = 0;
                     if (this.onErrorCallback) this.onErrorCallback(event.error);
                 }
             };
@@ -149,8 +151,12 @@ class SpeechToText {
     async start() {
         // Return a promise that resolves when recognition starts or rejects on error
         return new Promise((resolve, reject) => {
-            // Reset network error count each time we start
-            this.networkErrorCount = 0;
+            // If we've had too many network errors, immediately reject to avoid loops
+            if (this.networkErrorCount > this.failureThreshold) {
+                console.log(`Network error count (${this.networkErrorCount}) exceeds threshold (${this.failureThreshold})`);
+                reject(new Error('Speech recognition network connectivity issues detected'));
+                return;
+            }
 
             // Check if speech recognition is supported
             if (!this.isSupported) {
@@ -213,6 +219,7 @@ class SpeechToText {
                     if (!this.isListening) {
                         console.log('Recognition failed to start within timeout, resetting...');
                         this.stop();
+                        this.networkErrorCount++; // Increment error count on timeout
                         if (this.onEndCallback) this.onEndCallback();
                         reject(new Error('Recognition failed to start within timeout'));
                     }

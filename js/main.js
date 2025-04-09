@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
             addMessage("For full functionality, this application should be accessed over HTTPS.", 'ai');
         }
 
+        // Check if we're running on a cross-origin domain or a domain that might have connectivity issues
+        checkConnectivity();
+
         // Try several approaches to check microphone permissions
         tryCheckMicrophonePermission();
 
@@ -76,6 +79,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 2000);
             };
         }
+    }
+
+    function checkConnectivity() {
+        // Make a test request to Google's speech API domain to check connectivity
+        const testDomain = 'https://www.google.com/speech-api/v1/ping';
+
+        fetch(testDomain, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
+            .then(() => {
+                console.log('Connectivity check passed');
+            })
+            .catch(error => {
+                console.warn('Connectivity check failed:', error);
+                // Automatically switch to text input after welcome
+                const originalTriggerWelcome = triggerWelcome;
+                triggerWelcome = function() {
+                    originalTriggerWelcome();
+
+                    // Wait for welcome message to be spoken, then add a warning
+                    setTimeout(() => {
+                        console.log('Warning about potential connectivity issues');
+                        addMessage("I've detected potential connectivity issues that might affect speech recognition. You can try speaking, but if you experience problems, click the microphone button again to switch to text input.", 'ai');
+                    }, 2000);
+                };
+            });
     }
 
     function tryCheckMicrophonePermission() {
@@ -373,7 +400,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 speechRecognitionFailures++;
                 console.log(`Speech recognition failure #${speechRecognitionFailures}`);
 
-                if (speechRecognitionFailures >= 3) {
+                // If the error mentions network issues, check specifically for that
+                if (err.message && (err.message.includes('network') ||
+                    err.message.includes('connectivity'))) {
+                    console.log('Network connectivity error detected');
+
+                    if (speechRecognitionFailures >= 2) {
+                        console.log('Multiple network failures - switching to manual input mode');
+                        addMessage("Speech recognition is having network connectivity issues. Switching to text input mode for better reliability.", 'ai');
+                        toggleManualInput();
+                    }
+                }
+                // For other types of failures
+                else if (speechRecognitionFailures >= 3) {
                     console.log('Multiple recognition failures - switching to manual input mode');
                     addMessage("Speech recognition isn't working on your device. You can type your questions instead.", 'ai');
                     toggleManualInput();
@@ -458,8 +497,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show a user-friendly error message
         let errorMessage = 'Error with speech recognition. Try again.';
+        let isNetworkError = false;
+
         if (error === 'network') {
-            errorMessage = 'Network error. Please check your connection.';
+            errorMessage = 'Network error. Please check your internet connection.';
+            isNetworkError = true;
         } else if (error === 'not-allowed') {
             errorMessage = 'Microphone access denied. Please allow access.';
         } else if (error === 'aborted') {
@@ -468,14 +510,24 @@ document.addEventListener('DOMContentLoaded', () => {
             errorMessage = 'No microphone detected.';
         } else if (error === 'no-speech') {
             errorMessage = 'No speech detected. Please try again.';
-        } else if (error.includes('unavailable')) {
+        } else if (error.includes('unavailable') || error.includes('network') || error.includes('connectivity')) {
             errorMessage = error; // Use the custom message for unavailable speech recognition
+            isNetworkError = error.includes('network') || error.includes('connectivity');
 
-            // Increment failures count for unavailable errors
+            // Increment failures count
             speechRecognitionFailures++;
 
+            // If the error explicitly mentions network connectivity issues, switch to manual immediately
+            if (error.includes('network connectivity issues') ||
+                (isNetworkError && speechRecognitionFailures >= 2)) {
+                setTimeout(() => {
+                    addMessage("Speech recognition is having network connectivity issues. Switching to text input mode for better reliability.", 'ai');
+                    toggleManualInput();
+                }, 500);
+                return;
+            }
             // After multiple failures, switch to manual input
-            if (speechRecognitionFailures >= 3) {
+            else if (speechRecognitionFailures >= 3) {
                 setTimeout(() => {
                     addMessage("Speech recognition isn't working on your device. You can type your questions instead.", 'ai');
                     toggleManualInput();
@@ -486,8 +538,8 @@ document.addEventListener('DOMContentLoaded', () => {
         speechStatus.textContent = errorMessage;
         speechStatus.style.color = '#f72585';
 
-        // Add the error message to the chat only for the first error
-        if (speechRecognitionFailures <= 1) {
+        // Add the error message to the chat only for the first error or every 3rd network error
+        if (speechRecognitionFailures <= 1 || (isNetworkError && speechRecognitionFailures % 3 === 0)) {
             addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
         }
 
