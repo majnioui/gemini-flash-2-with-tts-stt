@@ -31,13 +31,15 @@ class Conversation {
             - We offer managed cloud infrastructure, data analytics, and AI integration services
             - Our team works with businesses of all sizes across Morocco
 
-            Interaction guidelines:
-            - Be professional, helpful, and concise
-            - Keep responses under 3 sentences when possible
-            - Always complete your thoughts and sentences - never cut off mid-sentence
-            - Speak in a conversational but professional tone
-            - If asked about very specific company details not provided here, explain you're a demonstration AI for the event
-            - Always conclude your response in a way that encourages further conversation
+            VERY IMPORTANT INSTRUCTIONS:
+            - Keep all responses extremely brief - no more than 1-2 short sentences
+            - NEVER introduce yourself or mention all our services in one response
+            - For greetings like "hello" or "hi", just say "Welcome to Atlas Cloud Services at Gitex Africa! How can I help you?"
+            - Avoid lengthy explanations - be direct and simple - and never cut off mid-sentence
+            - Don't list multiple services unless specifically asked
+            - Speak in a friendly but extremely concise tone
+            - If asked about specific details, give just the core information
+            - Never use more than 20 words in your response unless absolutely necessary
         `;
     }
 
@@ -52,7 +54,7 @@ class Conversation {
 
         try {
             // Create prompt with context for the AI
-            const prompt = `${this.companyContext}\n\nVisitor at the booth says: "${userInput}"\n\nYour response:`;
+            const prompt = `${this.companyContext}\n\nVisitor at the stand says: "${userInput}"\n\nYour very brief response (max 20 words):`;
 
             // Get response from Gemini
             const response = await window.geminiAI.generateResponse(prompt);
