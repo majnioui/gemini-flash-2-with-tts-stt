@@ -1,7 +1,7 @@
 /**
  * Main application script
  */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // DOM Elements
     const welcomeBtn = document.getElementById('welcomeBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -19,16 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let manualInputMode = false;
 
     // Initialize
-    init();
+    await init();
 
-    function init() {
+    async function init() {
         console.log('Initializing application...');
+
+        // Initialize the avatar animation
+        await initializeAvatar();
 
         // Check if the page is loaded over HTTPS
         checkSecureContext();
-
-        // Check if we're running on a cross-origin domain or a domain that might have connectivity issues
-        checkConnectivity();
 
         // Try several approaches to check microphone permissions
         tryCheckMicrophonePermission();
@@ -62,6 +62,23 @@ document.addEventListener('DOMContentLoaded', () => {
         checkIPv6Environment();
     }
 
+    async function initializeAvatar() {
+        if (window.avatar) {
+            try {
+                const success = await window.avatar.init('lottie-avatar');
+                if (!success) {
+                    console.error('Failed to initialize avatar animation, falling back to static avatar');
+                    const avatarContainer = document.getElementById('lottie-avatar');
+                    avatarContainer.innerHTML = '<img src="public/robot-avatar.gif" alt="AI Avatar" id="avatar-img">';
+                }
+            } catch (error) {
+                console.error('Error initializing avatar:', error);
+            }
+        } else {
+            console.warn('Avatar module not loaded');
+        }
+    }
+
     function checkSecureContext() {
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             console.warn('Page not loaded over HTTPS. Speech recognition may not work.');
@@ -87,30 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 2000);
             };
         }
-    }
-
-    function checkConnectivity() {
-        // Make a test request to Google's speech API domain to check connectivity
-        const testDomain = 'https://www.google.com/speech-api/v1/ping';
-
-        fetch(testDomain, { method: 'HEAD', mode: 'no-cors', cache: 'no-store' })
-            .then(() => {
-                console.log('Connectivity check passed');
-            })
-            .catch(error => {
-                console.warn('Connectivity check failed:', error);
-                // Automatically warn about connectivity after welcome
-                const originalTriggerWelcome = triggerWelcome;
-                triggerWelcome = function() {
-                    originalTriggerWelcome();
-
-                    // Wait for welcome message to be spoken, then add a warning
-                    setTimeout(() => {
-                        console.log('Warning about potential connectivity issues');
-                        addMessage("I've detected potential connectivity issues that might affect speech recognition. You can try speaking, but if you experience problems, click the microphone button again to switch to text input.", 'ai');
-                    }, 2000);
-                };
-            });
     }
 
     function tryCheckMicrophonePermission() {
@@ -427,11 +420,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function onSpeechStart() {
         console.log('AI speech started');
         avatar.classList.add('speaking');
+
+        // Start avatar talking animation
+        if (window.avatar) {
+            console.log('Triggering avatar talking animation');
+            try {
+                window.avatar.startTalking();
+            } catch (error) {
+                console.error('Error starting avatar talking animation:', error);
+            }
+        } else {
+            console.warn('Avatar controller not available for animation');
+        }
     }
 
     function onSpeechEnd() {
         console.log('AI speech ended');
         avatar.classList.remove('speaking');
+
+        // Stop avatar talking animation
+        if (window.avatar) {
+            console.log('Stopping avatar talking animation');
+            try {
+                window.avatar.stopTalking();
+            } catch (error) {
+                console.error('Error stopping avatar talking animation:', error);
+            }
+        } else {
+            console.warn('Avatar controller not available for animation');
+        }
     }
 
     function onListeningStart() {
@@ -441,6 +458,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Make sure permission-needed class is removed when listening starts
         document.querySelector('.input-area').classList.remove('permission-needed');
+
+        // Start avatar animation to show we're listening
+        if (window.avatar) {
+            console.log('Starting user listening animation');
+            window.avatar.startTalking();
+        }
     }
 
     async function onSpeechResult(transcript) {
@@ -466,8 +489,25 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add AI response to the UI
             addMessage(response, 'ai');
 
+            console.log('About to speak response and trigger animation...');
             // Speak the response
             window.tts.speak(response);
+
+            // Manually trigger the animation in case the speech event isn't firing properly
+            if (window.avatar) {
+                console.log('Directly triggering avatar talking animation from onSpeechResult');
+                window.avatar.startTalking();
+
+                // Set a timeout to stop the animation after response is likely finished
+                const wordCount = response.split(' ').length;
+                const speakingTime = Math.max(3000, wordCount * 200); // rough estimate of speaking time
+
+                console.log(`Scheduling animation to stop after ${speakingTime}ms`);
+                setTimeout(() => {
+                    console.log('Auto-stopping animation after timeout');
+                    window.avatar.stopTalking();
+                }, speakingTime);
+            }
         } catch (error) {
             console.error('Error handling speech result:', error);
 
@@ -488,6 +528,12 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Listening ended');
         micBtn.classList.remove('listening');
         updateSpeechStatus('Click microphone to speak');
+
+        // Stop avatar animation when user stops speaking
+        if (window.avatar) {
+            console.log('Stopping user listening animation');
+            window.avatar.stopTalking();
+        }
     }
 
     function onSpeechError(error) {
@@ -495,6 +541,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Clear UI state
         micBtn.classList.remove('listening');
+
+        // Stop avatar animation on error
+        if (window.avatar) {
+            console.log('Stopping animation due to speech recognition error');
+            window.avatar.stopTalking();
+        }
 
         // Show a user-friendly error message
         let errorMessage = 'Error with speech recognition. Try again.';

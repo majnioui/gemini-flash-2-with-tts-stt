@@ -92,11 +92,23 @@ class SpeechToText {
         // When speech begins to be detected
         this.recognition.onspeechstart = () => {
             console.log('Speech has been detected');
+
+            // Trigger talking animation when speech is detected
+            if (window.avatar) {
+                console.log('STT: Starting talking animation when speech detected');
+                window.avatar.startTalking();
+            }
         };
 
         // When speech ends
         this.recognition.onspeechend = () => {
             console.log('Speech has ended (stopped being detected)');
+
+            // Stop talking animation when speech ends
+            if (window.avatar) {
+                console.log('STT: Stopping talking animation when speech ends');
+                window.avatar.stopTalking();
+            }
         };
 
         // When results are available

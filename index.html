@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Greeter - Gitex Africa</title>
+    <title>Gitex Africa</title>
     <link rel="stylesheet" href="css/styles.css">
+    <!-- Add Lottie animation library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
     <script>
         // Show warning if not on HTTPS and not localhost
         document.addEventListener('DOMContentLoaded', function() {
@@ -31,7 +33,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>AI Greeter - Gitex Africa</h1>
+            <h1>ACS-PM Gitex Africa</h1>
             <div class="controls">
                 <button id="welcomeBtn" class="primary-btn">Trigger Welcome</button>
                 <button id="resetBtn" class="secondary-btn">Reset</button>
@@ -40,9 +42,8 @@
 
         <div class="avatar-container">
             <div id="avatar">
-                <!-- Avatar animation will be shown here -->
-                <img src="public/robot-avatar.gif" alt="AI Avatar" id="avatar-img">
-                <div class="speech-indicator" id="speech-indicator"></div>
+                <!-- Avatar animation will be shown here by Lottie -->
+                <div id="lottie-avatar"></div>
             </div>
         </div>
 
@@ -63,6 +64,7 @@
     <script src="js/gemini.js"></script>
     <script src="js/tts.js"></script>
     <script src="js/stt.js"></script>
+    <script src="js/avatar.js"></script>
     <script src="js/conversation.js"></script>
     <script src="js/main.js"></script>
 </body>
