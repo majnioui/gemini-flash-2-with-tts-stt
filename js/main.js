@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isProcessingResponse = false;
     let micPermissionGranted = false;
     let speechRecognitionFailures = 0;
-    let manualInputMode = false;
 
     // Initialize
     await init();
@@ -104,18 +103,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     function checkIPv6Environment() {
         // Check if we're running on IPv6 localhost ([::]), which often has issues with speech recognition
         if (window.location.hostname === '[::1]' || window.location.hostname === '[:::]' || window.location.hostname === '[::]') {
-            console.warn('Running on IPv6 localhost. Speech recognition often fails in this environment.');
+            console.warn('Running on IPv6 localhost. Speech recognition may not work as expected in this environment.');
 
-            // After welcome message is triggered, switch to manual input mode automatically
+            // Just log a warning without switching to text input mode
             const originalTriggerWelcome = triggerWelcome;
             triggerWelcome = function() {
                 originalTriggerWelcome();
 
-                // Wait for welcome message to be spoken, then switch to text input
                 setTimeout(() => {
-                    console.log('Automatically switching to text input mode due to IPv6 localhost environment');
-                    addMessage("Speech recognition often has issues in this environment. Switching to text input mode for better reliability.", 'ai');
-                    toggleManualInput();
+                    console.log('Warning about IPv6 environment limitations');
+                    addMessage("Speech recognition may have issues in this IPv6 environment. Try using a different network connection if you experience problems.", 'ai');
                 }, 2000);
             };
         }
@@ -208,12 +205,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!conversationActive) {
             updateSpeechStatus("Please trigger welcome message first", '#f72585');
             addMessage("Please trigger the welcome message first to start the conversation.", 'ai');
-            return;
-        }
-
-        // If we're in manual input mode
-        if (manualInputMode) {
-            toggleManualInput();
             return;
         }
 
@@ -364,64 +355,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         addMessage("Conversation reset. Click 'Trigger Welcome' to start a new conversation.", 'ai');
     }
 
-    function toggleManualInput() {
-        if (document.getElementById('manual-input')) {
-            // Remove manual input if it exists
-            document.getElementById('manual-input-container').remove();
-            micBtn.classList.remove('manual-mode');
-            updateSpeechStatus('Click microphone to speak');
-            manualInputMode = false;
-        } else {
-            // Create manual input
-            manualInputMode = true;
-            micBtn.classList.add('manual-mode');
-
-            const inputContainer = document.createElement('div');
-            inputContainer.id = 'manual-input-container';
-            inputContainer.className = 'manual-input-container';
-
-            const textInput = document.createElement('input');
-            textInput.type = 'text';
-            textInput.id = 'manual-input';
-            textInput.placeholder = 'Type your message here...';
-            textInput.className = 'manual-input';
-
-            const sendButton = document.createElement('button');
-            sendButton.textContent = 'Send';
-            sendButton.className = 'send-btn';
-
-            inputContainer.appendChild(textInput);
-            inputContainer.appendChild(sendButton);
-            inputArea.appendChild(inputContainer);
-
-            // Set focus to the input
-            textInput.focus();
-
-            // Handle send button click
-            sendButton.addEventListener('click', handleManualInput);
-
-            // Handle Enter key press
-            textInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    handleManualInput();
-                }
-            });
-
-            updateSpeechStatus('Typing mode (speech unavailable)');
-        }
-    }
-
-    function handleManualInput() {
-        const textInput = document.getElementById('manual-input');
-        const text = textInput.value.trim();
-
-        if (text) {
-            onSpeechResult(text);
-            textInput.value = '';
-            textInput.focus();
-        }
-    }
-
     function toggleListening() {
         console.log('Toggle listening called, current state:', window.stt.isListening);
 
@@ -475,11 +408,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         speechRecognitionFailures++;
         console.log(`Speech recognition failure #${speechRecognitionFailures}`);
 
-        // After multiple failures, switch to text input
-        if (speechRecognitionFailures >= 2) {
-            console.log('Multiple recognition failures - switching to manual input mode');
-            addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
-            toggleManualInput();
+        // After multiple failures, show a helpful message but don't switch to text input
+        if (speechRecognitionFailures >= 3) {
+            console.log('Multiple recognition failures - alerting user');
+            addMessage("Speech recognition is having trouble. Please check your microphone and ensure you're in a quiet environment.", 'ai');
         }
     }
 
@@ -745,21 +677,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
         }
 
-        // Switch to text input after multiple failures of serious errors
-        if (speechRecognitionFailures >= 3) {
+        // Provide a helpful tip after multiple failures but don't switch to text input
+        if (speechRecognitionFailures >= 4) {
             setTimeout(() => {
-                addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
-                toggleManualInput();
+                addMessage("Speech recognition is having issues. Try speaking more clearly or ensure your microphone is working properly.", 'ai');
 
-                // Disable continuous mode when switching to manual input
-                if (window.stt) {
-                    window.stt.setContinuous(false);
-                }
+                // Try restarting speech recognition after a longer delay
+                setTimeout(() => {
+                    if (config.continuousListening && window.stt) {
+                        console.log('Attempting to restart continuous listening after multiple failures');
+                        window.stt.setContinuous(true);
+                        startSpeechRecognition();
+                    }
+                }, 3000);
             }, 500);
         }
 
         // Reset status text after a few seconds, unless we have too many failures
-        if (speechRecognitionFailures < 3) {
+        if (speechRecognitionFailures < 4) {
             // Use a shorter timeout for expected silences
             const timeoutDuration = (error === 'no-speech-expected') ? 2000 : 4000;
 

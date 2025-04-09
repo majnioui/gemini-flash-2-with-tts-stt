@@ -359,65 +359,7 @@ button {
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-/* Manual input mode styles */
-.manual-input-container {
-    display: flex;
-    margin-top: 10px;
-    width: 100%;
-    animation: fadeIn 0.3s ease-in-out;
-}
-
-.manual-input {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    border-radius: 5px 0 0 5px;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: white;
-    font-family: inherit;
-    outline: none;
-}
-
-.manual-input:focus {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.send-btn {
-    background-color: #4cc9f0;
-    color: #16213e;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 0 5px 5px 0;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.send-btn:hover {
-    background-color: #3db8e0;
-}
-
-.mic-btn.manual-mode {
-    background-color: #4cc9f0;
-    position: relative;
-}
-
-.mic-btn.manual-mode::after {
-    content: "⌨️";
-    position: absolute;
-    font-size: 16px;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-.mic-btn.manual-mode .mic-icon {
-    display: none;
-}
-
-/* Adjust input area when in manual mode */
-.input-area {
-    flex-direction: column;
-}
+/* Removed manual input styles */
 
 .mic-btn.active-speech {
     background-color: #22c55e;
