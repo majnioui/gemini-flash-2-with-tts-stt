@@ -448,6 +448,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn('Avatar controller not available for animation');
         }
 
+        // Set flag to indicate AI just responded to avoid no-speech errors right after
+        if (window.stt) {
+            console.log('Setting AI just responded flag to reduce false no-speech errors');
+            window.stt.setAiJustResponded(true);
+        }
+
         // Automatically start listening again after a short delay if enabled in config
         if (config.autoListening) {
             setTimeout(() => {
@@ -650,6 +656,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Actually decrease the failure count to make system more forgiving
                 speechRecognitionFailures = Math.max(0, speechRecognitionFailures - 1);
                 break;
+            case 'no-speech-after-response':
+                // This is silence right after AI responded, which is normal
+                errorMessage = 'Ready for your next question';
+                // Don't show in chat and don't count as a failure
+                shouldShowErrorInChat = false;
+                // Don't increment failure count for this case
+                return; // Just exit early without updating UI
             case 'not-supported':
                 errorMessage = 'Speech recognition is not supported in this browser.';
                 break;
@@ -668,7 +681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateSpeechStatus(errorMessage, '#f72585');
 
         // Count consecutive errors, but don't count certain error types
-        if (error !== 'no-speech-reset' && error !== 'no-speech-expected') {
+        if (error !== 'no-speech-reset' && error !== 'no-speech-expected' && error !== 'no-speech-after-response') {
             speechRecognitionFailures++;
         }
 
@@ -696,7 +709,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset status text after a few seconds, unless we have too many failures
         if (speechRecognitionFailures < 4) {
             // Use a shorter timeout for expected silences
-            const timeoutDuration = (error === 'no-speech-expected') ? 2000 : 4000;
+            const timeoutDuration = (error === 'no-speech-expected' || error === 'no-speech-after-response') ? 2000 : 4000;
 
             setTimeout(() => {
                 if (config.continuousListening && window.stt && window.stt.continuous) {

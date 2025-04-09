@@ -13,9 +13,25 @@ class SpeechToText {
         this.silenceTimer = null;      // Timer for tracking speech silence
         this.isSpeaking = false;       // Tracks if user is actively speaking
         this.lastUserPhrase = '';      // Tracks the last thing user said
-        this.conversationEndingPhrases = ['thanks', 'thank you', 'cool thanks', 'great thanks', 'awesome thanks', 'goodbye', 'bye']; // Phrases that naturally end conversations
+        this.conversationEndingPhrases = [
+            'thanks',
+            'thank you',
+            'cool thanks',
+            'cool thank you',
+            'great thanks',
+            'awesome thanks',
+            'goodbye',
+            'bye',
+            'ok thanks',
+            'okay thanks',
+            'that\'s great thanks',
+            'perfect thanks',
+            'good thanks'
+        ]; // Phrases that naturally end conversations
         this.noSpeechAfterEndingPhrase = false; // Flag to track if we're in a conversation ending state
-        this.pauseAfterConversationEnd = 5000;  // Time to pause after conversation ending phrase
+        this.pauseAfterConversationEnd = 8000;  // Time to pause after conversation ending phrase
+        this.aiJustResponded = false;           // Flag to track if AI just finished speaking
+        this.pauseAfterAiResponse = 5000;       // Time to pause after AI response before showing no-speech errors
 
         // Callback functions for the main app to use
         this.onStartCallback = null;
@@ -255,6 +271,26 @@ class SpeechToText {
                 this.errorCounts = {};
             }
 
+            // Check if AI just responded, and this is a no-speech error shortly after
+            if (event.error === 'no-speech' && this.aiJustResponded) {
+                console.log('Ignoring no-speech error shortly after AI response');
+
+                // Don't count as an error, send special event type
+                if (this.onErrorCallback) {
+                    this.onErrorCallback('no-speech-after-response');
+                }
+
+                // Still restart if in continuous mode
+                if (this.continuous && !this.recognition.continuous) {
+                    setTimeout(() => {
+                        if (this.continuous) {
+                            this.start();
+                        }
+                    }, 1000);
+                }
+                return;
+            }
+
             // Special handling for no-speech errors after conversation ending phrases
             if (event.error === 'no-speech' && this.noSpeechAfterEndingPhrase) {
                 console.log('Ignoring no-speech error after conversation ending phrase');
@@ -413,7 +449,21 @@ class SpeechToText {
 
         const lowercaseText = text.toLowerCase().trim();
         return this.conversationEndingPhrases.some(phrase =>
-            lowercaseText.includes(phrase.toLowerCase()));
+            lowercaseText === phrase.toLowerCase() ||
+            lowercaseText.endsWith(phrase.toLowerCase()));
+    }
+
+    // New method to notify when AI has just responded
+    setAiJustResponded(value) {
+        this.aiJustResponded = value;
+
+        // If AI just finished speaking, set a timer to clear this state
+        if (value) {
+            setTimeout(() => {
+                this.aiJustResponded = false;
+                console.log('AI response grace period ended');
+            }, this.pauseAfterAiResponse);
+        }
     }
 }
 
