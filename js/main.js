@@ -58,6 +58,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 addMessage("Click 'Trigger Welcome' to start.", 'ai');
             }
         }, 1000);
+
+        // Check if we're running on IPv6 localhost ([::]), which often has issues with speech recognition
+        if (window.location.hostname === '[::1]' || window.location.hostname === '[:::]' || window.location.hostname === '[::]') {
+            console.warn('Running on IPv6 localhost. Speech recognition often fails in this environment.');
+
+            // After welcome message is triggered, switch to manual input mode automatically
+            const originalTriggerWelcome = triggerWelcome;
+            triggerWelcome = function() {
+                originalTriggerWelcome();
+
+                // Wait for welcome message to be spoken, then switch to text input
+                setTimeout(() => {
+                    console.log('Automatically switching to text input mode due to IPv6 localhost environment');
+                    addMessage("Speech recognition often has issues in this environment. Switching to text input mode for better reliability.", 'ai');
+                    toggleManualInput();
+                }, 2000);
+            };
+        }
     }
 
     function tryCheckMicrophonePermission() {
