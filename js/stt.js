@@ -12,6 +12,10 @@ class SpeechToText {
         this.silenceThreshold = 2000;  // Time in ms to wait for more speech before ending
         this.silenceTimer = null;      // Timer for tracking speech silence
         this.isSpeaking = false;       // Tracks if user is actively speaking
+        this.lastUserPhrase = '';      // Tracks the last thing user said
+        this.conversationEndingPhrases = ['thanks', 'thank you', 'cool thanks', 'great thanks', 'awesome thanks', 'goodbye', 'bye']; // Phrases that naturally end conversations
+        this.noSpeechAfterEndingPhrase = false; // Flag to track if we're in a conversation ending state
+        this.pauseAfterConversationEnd = 5000;  // Time to pause after conversation ending phrase
 
         // Callback functions for the main app to use
         this.onStartCallback = null;
@@ -111,6 +115,8 @@ class SpeechToText {
         this.recognition.onspeechstart = () => {
             console.log('Speech has been detected');
             this.isSpeaking = true;
+            // Reset the conversation ending state when new speech is detected
+            this.noSpeechAfterEndingPhrase = false;
 
             // Clear any existing silence timer
             if (this.silenceTimer) {
@@ -167,6 +173,24 @@ class SpeechToText {
             console.log(`Heard: "${result}" (confidence: ${confidence.toFixed(2)})`);
             this.transcript = result;
 
+            // Store the last phrase the user said
+            this.lastUserPhrase = result.toLowerCase().trim();
+
+            // Check if this is a conversation ending phrase
+            const isEndingPhrase = this.conversationEndingPhrases.some(phrase =>
+                this.lastUserPhrase.includes(phrase.toLowerCase()));
+
+            if (isEndingPhrase) {
+                console.log('Detected conversation ending phrase:', this.lastUserPhrase);
+                this.noSpeechAfterEndingPhrase = true;
+
+                // Set a timer to reset this flag after the pause period
+                setTimeout(() => {
+                    this.noSpeechAfterEndingPhrase = false;
+                    console.log('Conversation ending state reset after pause');
+                }, this.pauseAfterConversationEnd);
+            }
+
             // Stop talking animation when speech ends and results are processed
             if (window.avatar) {
                 console.log('STT: Stopping talking animation when results received');
@@ -178,12 +202,16 @@ class SpeechToText {
             // In continuous mode, we need to manually restart after results
             if (this.continuous && !this.recognition.continuous) {
                 console.log('Continuous mode active - will restart recognition automatically');
+
+                // If this was a conversation ending phrase, add a longer delay before restarting
+                const restartDelay = isEndingPhrase ? 2500 : 1000;
+
                 // Let the result be processed before restarting
                 setTimeout(() => {
                     if (!this.isListening) {
                         this.start();
                     }
-                }, 1000);
+                }, restartDelay);
             }
         };
 
@@ -225,6 +253,27 @@ class SpeechToText {
             // Track consecutive errors of the same type
             if (!this.errorCounts) {
                 this.errorCounts = {};
+            }
+
+            // Special handling for no-speech errors after conversation ending phrases
+            if (event.error === 'no-speech' && this.noSpeechAfterEndingPhrase) {
+                console.log('Ignoring no-speech error after conversation ending phrase');
+
+                // Don't count this as an error, and don't show error message
+                if (this.onErrorCallback) {
+                    this.onErrorCallback('no-speech-expected');
+                }
+
+                // Still restart recognition after a pause if in continuous mode
+                if (this.continuous && !this.recognition.continuous) {
+                    console.log('Will restart after pause due to natural conversation end');
+                    setTimeout(() => {
+                        if (this.continuous) {
+                            this.start();
+                        }
+                    }, 2000);
+                }
+                return;
             }
 
             // Increment error count for this type
@@ -356,6 +405,15 @@ class SpeechToText {
         this.onResultCallback = onResult;
         this.onEndCallback = onEnd;
         this.onErrorCallback = onError;
+    }
+
+    // Helper method to check if a phrase is a conversation ending phrase
+    isConversationEndingPhrase(text) {
+        if (!text) return false;
+
+        const lowercaseText = text.toLowerCase().trim();
+        return this.conversationEndingPhrases.some(phrase =>
+            lowercaseText.includes(phrase.toLowerCase()));
     }
 }
 

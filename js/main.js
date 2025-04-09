@@ -710,6 +710,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 speechRecognitionFailures--;
                 shouldShowErrorInChat = false;
                 break;
+            case 'no-speech-expected':
+                // This is a normal silence after a conversation ending phrase
+                errorMessage = 'Waiting for next question...';
+                // Don't show in chat and don't count as a failure
+                shouldShowErrorInChat = false;
+                // Actually decrease the failure count to make system more forgiving
+                speechRecognitionFailures = Math.max(0, speechRecognitionFailures - 1);
+                break;
             case 'not-supported':
                 errorMessage = 'Speech recognition is not supported in this browser.';
                 break;
@@ -728,7 +736,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateSpeechStatus(errorMessage, '#f72585');
 
         // Count consecutive errors, but don't count certain error types
-        if (error !== 'no-speech-reset') {
+        if (error !== 'no-speech-reset' && error !== 'no-speech-expected') {
             speechRecognitionFailures++;
         }
 
@@ -752,13 +760,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Reset status text after a few seconds, unless we have too many failures
         if (speechRecognitionFailures < 3) {
+            // Use a shorter timeout for expected silences
+            const timeoutDuration = (error === 'no-speech-expected') ? 2000 : 4000;
+
             setTimeout(() => {
                 if (config.continuousListening && window.stt && window.stt.continuous) {
                     updateSpeechStatus('Listening continuously...', '#4cc9f0');
                 } else {
                     updateSpeechStatus('Click microphone to speak');
                 }
-            }, 4000);
+            }, timeoutDuration);
         }
     }
 
