@@ -70,6 +70,24 @@ button {
     background-color: rgba(76, 201, 240, 0.1);
 }
 
+.test-btn {
+    background-color: #4ade80;
+    color: #16213e;
+    box-shadow: 0 4px 10px rgba(74, 222, 128, 0.3);
+    transition: all 0.3s ease;
+}
+
+.test-btn:hover {
+    background-color: #22c55e;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(74, 222, 128, 0.4);
+}
+
+.test-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(74, 222, 128, 0.3);
+}
+
 .avatar-container {
     display: flex;
     justify-content: center;

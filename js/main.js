@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagesContainer = document.getElementById('messages');
     const avatar = document.getElementById('avatar');
     const inputArea = document.querySelector('.input-area');
+    const testSpeechBtn = document.getElementById('testSpeechBtn');
 
     // State
     let conversationActive = false;
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
         welcomeBtn.addEventListener('click', triggerWelcome);
         resetBtn.addEventListener('click', resetConversation);
         micBtn.addEventListener('click', handleMicrophoneClick);
+        testSpeechBtn.addEventListener('click', testSpeechRecognition);
 
         // Set up callback functions for TTS
         window.tts.setCallbacks(
@@ -565,5 +567,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Scroll to the bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Direct test of browser's speech recognition
+    function testSpeechRecognition() {
+        // First, add a message to explain what's happening
+        addMessage("Testing direct speech recognition. Please say something simple like 'hello' when prompted...", 'ai');
+
+        // Check if SpeechRecognition is available
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            addMessage("Your browser doesn't support SpeechRecognition API. Please try Chrome or Edge.", 'ai');
+            return;
+        }
+
+        // Create a direct instance without our wrapper
+        const testRecognition = new SpeechRecognition();
+
+        // Configure recognition
+        testRecognition.continuous = false;
+        testRecognition.interimResults = false;
+        testRecognition.maxAlternatives = 1;
+        testRecognition.lang = 'en-US';
+
+        // UI feedback
+        speechStatus.textContent = 'Test: Say something...';
+        speechStatus.style.color = '#4cc9f0';
+
+        // Set up handlers
+        testRecognition.onstart = () => {
+            addMessage("Test: Speech recognition started. Say something now...", 'ai');
+            console.log('TEST: Recognition started');
+        };
+
+        testRecognition.onresult = (event) => {
+            const result = event.results[0][0].transcript;
+            const confidence = event.results[0][0].confidence;
+            console.log(`TEST: Recognized "${result}" with confidence ${confidence}`);
+
+            addMessage(`Test successful! I heard: "${result}" (confidence: ${(confidence * 100).toFixed(1)}%)`, 'ai');
+            speechStatus.textContent = 'Test completed successfully';
+            speechStatus.style.color = '#4cc9f0';
+        };
+
+        testRecognition.onerror = (event) => {
+            console.error('TEST: Speech recognition error', event.error);
+            addMessage(`Test failed with error: ${event.error}. This suggests there may be an issue with speech recognition in your environment.`, 'ai');
+
+            speechStatus.textContent = `Test error: ${event.error}`;
+            speechStatus.style.color = '#f72585';
+        };
+
+        testRecognition.onend = () => {
+            console.log('TEST: Recognition ended');
+        };
+
+        // Start the test
+        try {
+            testRecognition.start();
+        } catch (error) {
+            console.error('TEST: Error starting recognition', error);
+            addMessage(`Failed to start speech recognition test: ${error.message}`, 'ai');
+        }
     }
 });

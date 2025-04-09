@@ -45,10 +45,37 @@ class SpeechToText {
 
         try {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const SpeechGrammarList = window.SpeechGrammarList || window.webkitSpeechGrammarList;
+
+            // Create a new SpeechRecognition instance
             this.recognition = new SpeechRecognition();
+
+            // Create a simple grammar list for common greeting phrases
+            // This helps improve recognition accuracy for expected phrases
+            if (SpeechGrammarList) {
+                const grammarList = new SpeechGrammarList();
+
+                // Define a simple JSGF grammar with common phrases and questions
+                const grammar = `#JSGF V1.0; grammar phrases; public <phrase> =
+                    hello | hi | hey |
+                    what is | what are | how do | can you |
+                    tell me about | explain | show me |
+                    help | thanks | thank you | goodbye;`;
+
+                // Add the grammar to the list (weight of 1)
+                grammarList.addFromString(grammar, 1);
+
+                // Set the grammar list
+                this.recognition.grammars = grammarList;
+                console.log('Speech grammar list initialized');
+            } else {
+                console.log('SpeechGrammarList not supported, continuing without grammar');
+            }
+
+            // Configure recognition settings
             this.recognition.continuous = false;
-            this.recognition.interimResults = true; // Enable interim results for better user feedback
-            this.recognition.maxAlternatives = 3; // Get multiple alternatives
+            this.recognition.interimResults = true;
+            this.recognition.maxAlternatives = 3;
             this.recognition.lang = 'en-US';
 
             // Event handlers
@@ -67,6 +94,9 @@ class SpeechToText {
                 console.log('Speech recognition result received', event);
                 const last = event.results.length - 1;
                 this.transcript = event.results[last][0].transcript;
+                const confidence = event.results[last][0].confidence;
+
+                console.log(`Recognized: "${this.transcript}" (confidence: ${confidence})`);
 
                 // Reset network error count on successful result
                 this.networkErrorCount = 0;
@@ -104,6 +134,13 @@ class SpeechToText {
                     }
                 } else {
                     if (this.onErrorCallback) this.onErrorCallback(event.error);
+                }
+            };
+
+            this.recognition.onnomatch = (event) => {
+                console.log('Speech not recognized as valid input');
+                if (this.onErrorCallback) {
+                    this.onErrorCallback('I didn\'t recognize that. Please try again.');
                 }
             };
 
