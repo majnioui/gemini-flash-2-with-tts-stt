@@ -16,9 +16,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const resetBtn = document.getElementById('resetBtn');
     const micBtn = document.getElementById('micBtn');
     const speechStatus = document.getElementById('speech-status');
-    const messagesContainer = document.getElementById('messages');
     const avatar = document.getElementById('avatar');
-    const inputArea = document.querySelector('.input-area');
+    const aiSpeechBubble = document.getElementById('ai-speech-bubble');
+    const userSpeechText = document.getElementById('user-speech-text');
 
     // State
     let conversationActive = false;
@@ -296,7 +296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         conversationActive = true;
 
         const welcomeMessage = window.conversation.getWelcomeMessage();
-        addMessage(welcomeMessage, 'ai');
+        showAIMessage(welcomeMessage);
 
         // Start speaking
         window.tts.speak(welcomeMessage);
@@ -336,8 +336,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.stt.setContinuous(false);
         }
 
-        // Clear all messages
-        messagesContainer.innerHTML = '';
+        // Hide messages
+        hideAIMessage();
+        hideUserMessage();
 
         // Reset state
         conversationActive = false;
@@ -347,9 +348,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         avatar.classList.remove('speaking');
         micBtn.classList.remove('listening');
         updateSpeechStatus('Click microphone to speak');
-
-        // No longer showing reset confirmation message
-        // addMessage("Conversation reset. Click 'Trigger Welcome' to start a new conversation.", 'ai');
     }
 
     function toggleListening() {
@@ -525,25 +523,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function onSpeechResult(transcript) {
         console.log('Speech result received:', transcript);
 
-        // Add user message to the UI
-        addMessage(transcript, 'user');
+        // Show user message
+        showUserMessage(transcript);
 
-        // Show processing indicator
+        // Show processing indicator for AI
+        showAIMessage("...");
         isProcessingResponse = true;
-        addMessage("...", 'ai', 'processing-message');
 
         try {
             // Get response from conversation handler
             const response = await window.conversation.getResponse(transcript);
 
-            // Remove processing indicator
-            const processingIndicator = document.querySelector('.processing-message');
-            if (processingIndicator) {
-                processingIndicator.remove();
-            }
-
-            // Add AI response to the UI
-            addMessage(response, 'ai');
+            // Show AI response
+            showAIMessage(response);
 
             console.log('About to speak response and trigger animation...');
             // Speak the response
@@ -567,15 +559,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('Error handling speech result:', error);
 
-            // Remove processing indicator
-            const processingIndicator = document.querySelector('.processing-message');
-            if (processingIndicator) {
-                processingIndicator.remove();
-            }
-
             // Don't show error messages to the user
             // Instead, silently continue or retry
             console.log('Speech processing error, attempting to recover silently');
+
+            // Hide the AI bubble on error
+            hideAIMessage();
 
             // Auto-restart listening even in case of error if enabled in config
             if (config.autoListening) {
@@ -707,20 +696,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Functions to display/hide messages
+    function showAIMessage(text) {
+        if (!text) return;
+
+        aiSpeechBubble.textContent = text;
+        aiSpeechBubble.classList.add('visible');
+
+        // Auto-hide user speech after AI responds
+        setTimeout(() => {
+            hideUserMessage();
+        }, 2000);
+    }
+
+    function hideAIMessage() {
+        aiSpeechBubble.classList.remove('visible');
+        setTimeout(() => {
+            aiSpeechBubble.textContent = '';
+        }, 300);
+    }
+
+    function showUserMessage(text) {
+        if (!text) return;
+
+        userSpeechText.textContent = text;
+        userSpeechText.classList.add('visible');
+
+        // Auto-hide after a few seconds
+        setTimeout(() => {
+            hideUserMessage();
+        }, 10000);
+    }
+
+    function hideUserMessage() {
+        userSpeechText.classList.remove('visible');
+        setTimeout(() => {
+            userSpeechText.textContent = '';
+        }, 300);
+    }
+
+    // Replace the old addMessage function with a routing function
     function addMessage(text, sender, extraClass = '') {
-        const messageElement = document.createElement('div');
-        messageElement.classList.add('message');
-        messageElement.classList.add(`${sender}-message`);
-
-        if (extraClass) {
-            messageElement.classList.add(extraClass);
+        // Route to the appropriate display function
+        if (sender === 'ai') {
+            showAIMessage(text);
+        } else if (sender === 'user') {
+            showUserMessage(text);
         }
-
-        messageElement.textContent = text;
-
-        messagesContainer.appendChild(messageElement);
-
-        // Scroll to the bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 });

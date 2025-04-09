@@ -44,24 +44,29 @@
             </div>
         </div>
 
-        <div class="avatar-container">
-            <div id="avatar">
-                <!-- Avatar animation will be shown here by Lottie -->
-                <div id="lottie-avatar"></div>
+        <div class="avatar-section">
+            <div class="avatar-container">
+                <div id="avatar">
+                    <!-- Avatar animation will be shown here by Lottie -->
+                    <div id="lottie-avatar"></div>
+                    <div class="speech-indicator"></div>
+                </div>
+                <!-- Speech bubble for AI response -->
+                <div class="speech-bubble" id="ai-speech-bubble"></div>
             </div>
         </div>
 
-        <div class="interaction-area">
-            <div class="messages" id="messages">
-                <!-- Messages will appear here -->
-            </div>
+        <!-- User speech display in bottom right -->
+        <div class="user-speech-container">
+            <div id="user-speech-text"></div>
+        </div>
 
-            <div class="input-area">
-                <button id="micBtn" class="mic-btn">
-                    <span class="mic-icon">🎤</span>
-                </button>
-                <div id="speech-status">Click microphone to speak</div>
-            </div>
+        <!-- Microphone and status at the bottom -->
+        <div class="control-area">
+            <button id="micBtn" class="mic-btn">
+                <span class="mic-icon">🎤</span>
+            </button>
+            <div id="speech-status">Click microphone to speak</div>
         </div>
     </div>
 
