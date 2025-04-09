@@ -356,70 +356,55 @@ document.addEventListener('DOMContentLoaded', () => {
     function toggleListening() {
         console.log('Toggle listening called, current state:', window.stt.isListening);
 
-        // Create a timeout to reset the UI if the speech recognition doesn't respond
-        const failsafeTimeout = setTimeout(() => {
-            if (micBtn.classList.contains('listening')) {
-                console.log('Failsafe timeout triggered - resetting microphone UI');
-                micBtn.classList.remove('listening');
-                speechStatus.textContent = 'Click microphone to speak';
-                speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
-            }
-        }, 5000);
-
         if (!conversationActive) {
             addMessage("Please trigger the welcome message first to start the conversation.", 'ai');
-            clearTimeout(failsafeTimeout);
             return;
         }
 
         if (isProcessingResponse) {
             addMessage("Please wait while I'm processing your previous request.", 'ai');
-            clearTimeout(failsafeTimeout);
             return;
         }
 
+        // If already listening, stop
         if (window.stt.isListening) {
             window.stt.stop();
-            clearTimeout(failsafeTimeout);
-        } else {
-            // Make sure AI isn't speaking when we start listening
-            if (window.tts.isSpeaking) {
-                window.tts.stop();
-            }
+            return;
+        }
 
-            // Add a message to indicate the user should speak
-            speechStatus.textContent = 'Starting...';
+        // Make sure AI isn't speaking when we start listening
+        if (window.tts.isSpeaking) {
+            window.tts.stop();
+        }
 
-            window.stt.start().then(() => {
-                // This will only run if start returns a promise and resolves
-                clearTimeout(failsafeTimeout);
-                speechRecognitionFailures = 0; // Reset failures counter on success
+        // Add a message to indicate the user should speak
+        speechStatus.textContent = 'Starting...';
+
+        try {
+            // Simple approach: directly start recognition and handle callbacks
+            window.stt.start().then(started => {
+                if (started) {
+                    console.log('Recognition started successfully');
+                    speechRecognitionFailures = 0; // Reset failures counter on success
+                }
             }).catch(err => {
                 console.error('Error in speech recognition:', err);
-                clearTimeout(failsafeTimeout);
 
-                // Count failures and switch to manual input after multiple failures
+                // Count failures
                 speechRecognitionFailures++;
                 console.log(`Speech recognition failure #${speechRecognitionFailures}`);
 
-                // If the error mentions network issues, check specifically for that
-                if (err.message && (err.message.includes('network') ||
-                    err.message.includes('connectivity'))) {
-                    console.log('Network connectivity error detected');
-
-                    if (speechRecognitionFailures >= 2) {
-                        console.log('Multiple network failures - switching to manual input mode');
-                        addMessage("Speech recognition is having network connectivity issues. Switching to text input mode for better reliability.", 'ai');
-                        toggleManualInput();
-                    }
-                }
-                // For other types of failures
-                else if (speechRecognitionFailures >= 3) {
+                // After multiple failures, switch to text input
+                if (speechRecognitionFailures >= 2) {
                     console.log('Multiple recognition failures - switching to manual input mode');
-                    addMessage("Speech recognition isn't working on your device. You can type your questions instead.", 'ai');
+                    addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
                     toggleManualInput();
                 }
             });
+        } catch (error) {
+            console.error('Exception starting speech recognition:', error);
+            addMessage("There was a problem starting speech recognition. Try typing instead.", 'ai');
+            toggleManualInput();
         }
     }
 
@@ -499,53 +484,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show a user-friendly error message
         let errorMessage = 'Error with speech recognition. Try again.';
-        let isNetworkError = false;
 
-        if (error === 'network') {
-            errorMessage = 'Network error. Please check your internet connection.';
-            isNetworkError = true;
-        } else if (error === 'not-allowed') {
-            errorMessage = 'Microphone access denied. Please allow access.';
-        } else if (error === 'aborted') {
-            errorMessage = 'Speech recognition was aborted.';
-        } else if (error === 'audio-capture') {
-            errorMessage = 'No microphone detected.';
-        } else if (error === 'no-speech') {
-            errorMessage = 'No speech detected. Please try again.';
-        } else if (error.includes('unavailable') || error.includes('network') || error.includes('connectivity')) {
-            errorMessage = error; // Use the custom message for unavailable speech recognition
-            isNetworkError = error.includes('network') || error.includes('connectivity');
-
-            // Increment failures count
-            speechRecognitionFailures++;
-
-            // If the error explicitly mentions network connectivity issues, switch to manual immediately
-            if (error.includes('network connectivity issues') ||
-                (isNetworkError && speechRecognitionFailures >= 2)) {
-                setTimeout(() => {
-                    addMessage("Speech recognition is having network connectivity issues. Switching to text input mode for better reliability.", 'ai');
-                    toggleManualInput();
-                }, 500);
-                return;
-            }
-            // After multiple failures, switch to manual input
-            else if (speechRecognitionFailures >= 3) {
-                setTimeout(() => {
-                    addMessage("Speech recognition isn't working on your device. You can type your questions instead.", 'ai');
-                    toggleManualInput();
-                }, 1000);
-            }
+        switch(error) {
+            case 'network':
+                errorMessage = 'Network error. Please check your internet connection.';
+                break;
+            case 'not-allowed':
+                errorMessage = 'Microphone access denied. Please allow access.';
+                break;
+            case 'aborted':
+                errorMessage = 'Speech recognition was aborted.';
+                break;
+            case 'audio-capture':
+                errorMessage = 'No microphone detected.';
+                break;
+            case 'no-speech':
+                errorMessage = 'No speech detected. Please try again.';
+                break;
+            case 'not-supported':
+                errorMessage = 'Speech recognition is not supported in this browser.';
+                break;
+            case 'start-error':
+                errorMessage = 'Error starting speech recognition.';
+                break;
+            case 'no-match':
+                errorMessage = 'Sorry, I didn\'t recognize what you said.';
+                break;
+            default:
+                if (error.includes('network') || error.includes('connectivity')) {
+                    errorMessage = 'Network connectivity issues detected.';
+                }
         }
 
         speechStatus.textContent = errorMessage;
         speechStatus.style.color = '#f72585';
 
-        // Add the error message to the chat only for the first error or every 3rd network error
-        if (speechRecognitionFailures <= 1 || (isNetworkError && speechRecognitionFailures % 3 === 0)) {
+        // Count consecutive errors
+        speechRecognitionFailures++;
+
+        // Show error in chat for first error only to avoid spam
+        if (speechRecognitionFailures === 1) {
             addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
         }
 
-        // Reset after a few seconds
+        // Switch to text input after multiple failures
+        if (speechRecognitionFailures >= 2) {
+            setTimeout(() => {
+                addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
+                toggleManualInput();
+            }, 500);
+        }
+
+        // Reset status text after a few seconds
         setTimeout(() => {
             speechStatus.textContent = 'Click microphone to speak';
             speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
@@ -595,10 +585,14 @@ document.addEventListener('DOMContentLoaded', () => {
         speechStatus.textContent = 'Test: Say something...';
         speechStatus.style.color = '#4cc9f0';
 
-        // Set up handlers
+        // Set up handlers exactly like Mozilla's example
         testRecognition.onstart = () => {
             addMessage("Test: Speech recognition started. Say something now...", 'ai');
             console.log('TEST: Recognition started');
+        };
+
+        testRecognition.onspeechstart = () => {
+            console.log('TEST: Speech detected');
         };
 
         testRecognition.onresult = (event) => {
@@ -609,6 +603,11 @@ document.addEventListener('DOMContentLoaded', () => {
             addMessage(`Test successful! I heard: "${result}" (confidence: ${(confidence * 100).toFixed(1)}%)`, 'ai');
             speechStatus.textContent = 'Test completed successfully';
             speechStatus.style.color = '#4cc9f0';
+        };
+
+        testRecognition.onspeechend = () => {
+            console.log('TEST: Speech has ended');
+            testRecognition.stop();
         };
 
         testRecognition.onerror = (event) => {
