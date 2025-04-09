@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagesContainer = document.getElementById('messages');
     const avatar = document.getElementById('avatar');
     const inputArea = document.querySelector('.input-area');
-    const testSpeechBtn = document.getElementById('testSpeechBtn');
 
     // State
     let conversationActive = false;
@@ -26,10 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Initializing application...');
 
         // Check if the page is loaded over HTTPS
-        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            console.warn('Page not loaded over HTTPS. Speech recognition may not work.');
-            addMessage("For full functionality, this application should be accessed over HTTPS.", 'ai');
-        }
+        checkSecureContext();
 
         // Check if we're running on a cross-origin domain or a domain that might have connectivity issues
         checkConnectivity();
@@ -41,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
         welcomeBtn.addEventListener('click', triggerWelcome);
         resetBtn.addEventListener('click', resetConversation);
         micBtn.addEventListener('click', handleMicrophoneClick);
-        testSpeechBtn.addEventListener('click', testSpeechRecognition);
 
         // Set up callback functions for TTS
         window.tts.setCallbacks(
@@ -64,6 +59,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 1000);
 
+        checkIPv6Environment();
+    }
+
+    function checkSecureContext() {
+        if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            console.warn('Page not loaded over HTTPS. Speech recognition may not work.');
+            addMessage("For full functionality, this application should be accessed over HTTPS.", 'ai');
+        }
+    }
+
+    function checkIPv6Environment() {
         // Check if we're running on IPv6 localhost ([::]), which often has issues with speech recognition
         if (window.location.hostname === '[::1]' || window.location.hostname === '[:::]' || window.location.hostname === '[::]') {
             console.warn('Running on IPv6 localhost. Speech recognition often fails in this environment.');
@@ -93,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.warn('Connectivity check failed:', error);
-                // Automatically switch to text input after welcome
+                // Automatically warn about connectivity after welcome
                 const originalTriggerWelcome = triggerWelcome;
                 triggerWelcome = function() {
                     originalTriggerWelcome();
@@ -115,37 +121,39 @@ document.addEventListener('DOMContentLoaded', () => {
         // Try legacy approach as fallback
         else if (navigator.getUserMedia || navigator.webkitGetUserMedia ||
                  navigator.mozGetUserMedia || navigator.msGetUserMedia) {
-
-            const getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
-                                 navigator.mozGetUserMedia || navigator.msGetUserMedia;
-
-            getUserMedia.call(navigator,
-                { audio: true },
-                function(stream) {
-                    // Permission granted
-                    stream.getTracks().forEach(track => track.stop());
-                    micPermissionGranted = true;
-                    console.log('Microphone permission granted (legacy API)');
-                    document.querySelector('.input-area').classList.remove('permission-needed');
-                },
-                function(err) {
-                    // Permission denied
-                    console.error('Microphone permission error (legacy API):', err);
-                    micPermissionGranted = false;
-                    speechStatus.textContent = 'Click microphone to grant access';
-                    speechStatus.style.color = '#f72585';
-                    document.querySelector('.input-area').classList.add('permission-needed');
-                }
-            );
+            checkMicrophonePermissionLegacy();
         }
         // No known API available
         else {
-            console.error('No getUserMedia API available');
-            micPermissionGranted = false;
-            speechStatus.textContent = 'Speech input not supported in this browser';
-            speechStatus.style.color = '#f72585';
-            document.querySelector('.input-area').classList.add('permission-needed');
+            handleNoMicrophoneApi();
         }
+    }
+
+    function checkMicrophonePermissionLegacy() {
+        const getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia ||
+                             navigator.mozGetUserMedia || navigator.msGetUserMedia;
+
+        getUserMedia.call(navigator,
+            { audio: true },
+            function(stream) {
+                // Permission granted
+                stream.getTracks().forEach(track => track.stop());
+                micPermissionGranted = true;
+                console.log('Microphone permission granted (legacy API)');
+                document.querySelector('.input-area').classList.remove('permission-needed');
+            },
+            function(err) {
+                // Permission denied
+                handleMicrophonePermissionError(err, 'legacy API');
+            }
+        );
+    }
+
+    function handleNoMicrophoneApi() {
+        console.error('No getUserMedia API available');
+        micPermissionGranted = false;
+        updateSpeechStatus('Speech input not supported in this browser', '#f72585');
+        document.querySelector('.input-area').classList.add('permission-needed');
     }
 
     async function checkMicrophonePermission() {
@@ -153,8 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!navigator.mediaDevices) {
             console.error('MediaDevices API not available - page may need to be served over HTTPS');
             micPermissionGranted = false;
-            speechStatus.textContent = 'Speech recognition requires HTTPS';
-            speechStatus.style.color = '#f72585';
+            updateSpeechStatus('Speech recognition requires HTTPS', '#f72585');
             document.querySelector('.input-area').classList.add('permission-needed');
             return false;
         }
@@ -170,23 +177,28 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector('.input-area').classList.remove('permission-needed');
             return true;
         } catch (err) {
-            console.error('Microphone permission error:', err);
-            micPermissionGranted = false;
-            speechStatus.textContent = 'Click microphone to grant access';
-            speechStatus.style.color = '#f72585';
-
-            // Add visual indicator for permission needed
-            document.querySelector('.input-area').classList.add('permission-needed');
+            handleMicrophonePermissionError(err, 'modern API');
             return false;
         }
+    }
+
+    function handleMicrophonePermissionError(err, api = 'API') {
+        console.error(`Microphone permission error (${api}):`, err);
+        micPermissionGranted = false;
+        updateSpeechStatus('Click microphone to grant access', '#f72585');
+        document.querySelector('.input-area').classList.add('permission-needed');
+    }
+
+    function updateSpeechStatus(message, color = 'rgba(255, 255, 255, 0.7)') {
+        speechStatus.textContent = message;
+        speechStatus.style.color = color;
     }
 
     function handleMicrophoneClick() {
         console.log('Microphone button clicked');
 
         if (!conversationActive) {
-            speechStatus.textContent = "Please trigger welcome message first";
-            speechStatus.style.color = '#f72585';
+            updateSpeechStatus("Please trigger welcome message first", '#f72585');
             addMessage("Please trigger the welcome message first to start the conversation.", 'ai');
             return;
         }
@@ -262,8 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
         window.tts.speak(welcomeMessage);
 
         // Prompt user to use microphone after welcome
-        speechStatus.textContent = 'Click microphone to speak';
-        speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
+        updateSpeechStatus('Click microphone to speak');
     }
 
     function resetConversation() {
@@ -288,8 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset visual indicators
         avatar.classList.remove('speaking');
         micBtn.classList.remove('listening');
-        speechStatus.textContent = 'Click microphone to speak';
-        speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
+        updateSpeechStatus('Click microphone to speak');
 
         // Add reset confirmation
         addMessage("Conversation reset. Click 'Trigger Welcome' to start a new conversation.", 'ai');
@@ -300,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Remove manual input if it exists
             document.getElementById('manual-input-container').remove();
             micBtn.classList.remove('manual-mode');
-            speechStatus.textContent = 'Click microphone to speak';
+            updateSpeechStatus('Click microphone to speak');
             manualInputMode = false;
         } else {
             // Create manual input
@@ -338,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            speechStatus.textContent = 'Typing mode (speech unavailable)';
+            updateSpeechStatus('Typing mode (speech unavailable)');
         }
     }
 
@@ -378,32 +388,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Add a message to indicate the user should speak
-        speechStatus.textContent = 'Starting...';
+        updateSpeechStatus('Starting...');
 
+        startSpeechRecognition();
+    }
+
+    function startSpeechRecognition() {
         try {
             // Simple approach: directly start recognition and handle callbacks
-            window.stt.start().then(started => {
-                if (started) {
-                    console.log('Recognition started successfully');
-                    speechRecognitionFailures = 0; // Reset failures counter on success
-                }
-            }).catch(err => {
-                console.error('Error in speech recognition:', err);
-
-                // Count failures
-                speechRecognitionFailures++;
-                console.log(`Speech recognition failure #${speechRecognitionFailures}`);
-
-                // After multiple failures, switch to text input
-                if (speechRecognitionFailures >= 2) {
-                    console.log('Multiple recognition failures - switching to manual input mode');
-                    addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
-                    toggleManualInput();
-                }
-            });
+            window.stt.start()
+                .then(started => {
+                    if (started) {
+                        console.log('Recognition started successfully');
+                        speechRecognitionFailures = 0; // Reset failures counter on success
+                    }
+                })
+                .catch(handleSpeechRecognitionError);
         } catch (error) {
-            console.error('Exception starting speech recognition:', error);
-            addMessage("There was a problem starting speech recognition. Try typing instead.", 'ai');
+            handleSpeechRecognitionError(error);
+        }
+    }
+
+    function handleSpeechRecognitionError(err) {
+        console.error('Error in speech recognition:', err);
+
+        // Count failures
+        speechRecognitionFailures++;
+        console.log(`Speech recognition failure #${speechRecognitionFailures}`);
+
+        // After multiple failures, switch to text input
+        if (speechRecognitionFailures >= 2) {
+            console.log('Multiple recognition failures - switching to manual input mode');
+            addMessage("Speech recognition isn't working reliably. You can type your questions instead.", 'ai');
             toggleManualInput();
         }
     }
@@ -421,8 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function onListeningStart() {
         console.log('Listening started');
         micBtn.classList.add('listening');
-        speechStatus.textContent = 'Listening...';
-        speechStatus.style.color = '#4cc9f0';
+        updateSpeechStatus('Listening...', '#4cc9f0');
 
         // Make sure permission-needed class is removed when listening starts
         document.querySelector('.input-area').classList.remove('permission-needed');
@@ -472,8 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function onListeningEnd() {
         console.log('Listening ended');
         micBtn.classList.remove('listening');
-        speechStatus.textContent = 'Click microphone to speak';
-        speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
+        updateSpeechStatus('Click microphone to speak');
     }
 
     function onSpeechError(error) {
@@ -516,8 +530,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
         }
 
-        speechStatus.textContent = errorMessage;
-        speechStatus.style.color = '#f72585';
+        updateSpeechStatus(errorMessage, '#f72585');
 
         // Count consecutive errors
         speechRecognitionFailures++;
@@ -537,8 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Reset status text after a few seconds
         setTimeout(() => {
-            speechStatus.textContent = 'Click microphone to speak';
-            speechStatus.style.color = 'rgba(255, 255, 255, 0.7)';
+            updateSpeechStatus('Click microphone to speak');
         }, 4000);
     }
 
@@ -557,77 +569,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Scroll to the bottom
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-
-    // Direct test of browser's speech recognition
-    function testSpeechRecognition() {
-        // First, add a message to explain what's happening
-        addMessage("Testing direct speech recognition. Please say something simple like 'hello' when prompted...", 'ai');
-
-        // Check if SpeechRecognition is available
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            addMessage("Your browser doesn't support SpeechRecognition API. Please try Chrome or Edge.", 'ai');
-            return;
-        }
-
-        // Create a direct instance without our wrapper
-        const testRecognition = new SpeechRecognition();
-
-        // Configure recognition
-        testRecognition.continuous = false;
-        testRecognition.interimResults = false;
-        testRecognition.maxAlternatives = 1;
-        testRecognition.lang = 'en-US';
-
-        // UI feedback
-        speechStatus.textContent = 'Test: Say something...';
-        speechStatus.style.color = '#4cc9f0';
-
-        // Set up handlers exactly like Mozilla's example
-        testRecognition.onstart = () => {
-            addMessage("Test: Speech recognition started. Say something now...", 'ai');
-            console.log('TEST: Recognition started');
-        };
-
-        testRecognition.onspeechstart = () => {
-            console.log('TEST: Speech detected');
-        };
-
-        testRecognition.onresult = (event) => {
-            const result = event.results[0][0].transcript;
-            const confidence = event.results[0][0].confidence;
-            console.log(`TEST: Recognized "${result}" with confidence ${confidence}`);
-
-            addMessage(`Test successful! I heard: "${result}" (confidence: ${(confidence * 100).toFixed(1)}%)`, 'ai');
-            speechStatus.textContent = 'Test completed successfully';
-            speechStatus.style.color = '#4cc9f0';
-        };
-
-        testRecognition.onspeechend = () => {
-            console.log('TEST: Speech has ended');
-            testRecognition.stop();
-        };
-
-        testRecognition.onerror = (event) => {
-            console.error('TEST: Speech recognition error', event.error);
-            addMessage(`Test failed with error: ${event.error}. This suggests there may be an issue with speech recognition in your environment.`, 'ai');
-
-            speechStatus.textContent = `Test error: ${event.error}`;
-            speechStatus.style.color = '#f72585';
-        };
-
-        testRecognition.onend = () => {
-            console.log('TEST: Recognition ended');
-        };
-
-        // Start the test
-        try {
-            testRecognition.start();
-        } catch (error) {
-            console.error('TEST: Error starting recognition', error);
-            addMessage(`Failed to start speech recognition test: ${error.message}`, 'ai');
-        }
     }
 });

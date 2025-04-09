@@ -5,9 +5,9 @@ class Conversation {
     constructor() {
         // Predefined welcome messages
         this.welcomeMessages = [
-            "Hello and welcome to our booth at Gitex Africa! How can I assist you today?",
-            "Welcome to our company's booth at Gitex Africa! I'm here to help you learn more about our services.",
-            "Hi there! Thanks for visiting us at Gitex Africa. What would you like to know about our company?"
+            "Hello and welcome to Gitex",
+            "Hello and welcome to atlas cloud services stand here at gitex",
+            "Hello there"
         ];
 
         // Fallback responses for when AI is unavailable
