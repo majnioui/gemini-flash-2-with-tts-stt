@@ -41,6 +41,7 @@ class Conversation {
             - NEVER introduce yourself or mention all our services in one response
             - Don't list multiple services unless specifically asked
             - Speak in a friendly but extremely concise tone
+            - If you don't have the correct answer, just ask to speak to one of our people on the stand
         `;
     }
 

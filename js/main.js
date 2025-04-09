@@ -66,12 +66,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             onSpeechError
         );
 
-        // No longer showing initial message
-        // setTimeout(() => {
-        //     if (!conversationActive) {
-        //         addMessage("Click 'Trigger Welcome' to start.", 'ai');
-        //     }
-        // }, 1000);
+        // Make initial speech bubble visible
+        setTimeout(() => {
+            if (aiSpeechBubble.textContent) {
+                aiSpeechBubble.classList.add('visible');
+
+                // Auto-hide after 5 seconds
+                setTimeout(() => {
+                    if (!conversationActive) {
+                        hideAIMessage();
+                    }
+                }, 5000);
+            }
+        }, 1000);
 
         checkIPv6Environment();
     }
@@ -142,7 +149,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 stream.getTracks().forEach(track => track.stop());
                 micPermissionGranted = true;
                 console.log('Microphone permission granted (legacy API)');
-                document.querySelector('.input-area').classList.remove('permission-needed');
+                document.querySelector('.control-area').classList.remove('permission-needed');
             },
             function(err) {
                 // Permission denied
@@ -155,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('No getUserMedia API available');
         micPermissionGranted = false;
         updateSpeechStatus('Speech input not supported in this browser', '#f72585');
-        document.querySelector('.input-area').classList.add('permission-needed');
+        document.querySelector('.control-area').classList.add('permission-needed');
     }
 
     async function checkMicrophonePermission() {
@@ -164,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('MediaDevices API not available - page may need to be served over HTTPS');
             micPermissionGranted = false;
             updateSpeechStatus('Speech recognition requires HTTPS', '#f72585');
-            document.querySelector('.input-area').classList.add('permission-needed');
+            document.querySelector('.control-area').classList.add('permission-needed');
             return false;
         }
 
@@ -176,7 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Microphone permission granted');
 
             // Remove permission needed indicator if it exists
-            document.querySelector('.input-area').classList.remove('permission-needed');
+            document.querySelector('.control-area').classList.remove('permission-needed');
             return true;
         } catch (err) {
             handleMicrophonePermissionError(err, 'modern API');
@@ -188,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(`Microphone permission error (${api}):`, err);
         micPermissionGranted = false;
         updateSpeechStatus('Click microphone to grant access', '#f72585');
-        document.querySelector('.input-area').classList.add('permission-needed');
+        document.querySelector('.control-area').classList.add('permission-needed');
     }
 
     function updateSpeechStatus(message, color = 'rgba(255, 255, 255, 0.7)') {
@@ -277,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Stop the stream immediately, we just needed permission
         stream.getTracks().forEach(track => track.stop());
         micPermissionGranted = true;
-        document.querySelector('.input-area').classList.remove('permission-needed');
+        document.querySelector('.control-area').classList.remove('permission-needed');
         toggleListening();
     }
 
@@ -415,6 +422,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('AI speech started');
         avatar.classList.add('speaking');
 
+        // Make sure speech bubble is visible when AI starts speaking
+        if (aiSpeechBubble.textContent && !aiSpeechBubble.classList.contains('visible')) {
+            aiSpeechBubble.classList.add('visible');
+        }
+
         // Start avatar talking animation
         if (window.avatar) {
             console.log('Triggering avatar talking animation');
@@ -431,6 +443,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function onSpeechEnd() {
         console.log('AI speech ended');
         avatar.classList.remove('speaking');
+
+        // Keep speech bubble visible for a short time after AI stops speaking
+        setTimeout(() => {
+            if (!window.tts.isSpeaking) {
+                hideAIMessage();
+            }
+        }, 1000);
 
         // Stop avatar talking animation
         if (window.avatar) {
@@ -471,7 +490,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateSpeechStatus('Listening...', '#4cc9f0');
 
         // Make sure permission-needed class is removed when listening starts
-        document.querySelector('.input-area').classList.remove('permission-needed');
+        const controlArea = document.querySelector('.control-area');
+        if (controlArea) {
+            controlArea.classList.remove('permission-needed');
+        }
 
         // Start avatar animation to show we're listening
         if (window.avatar) {
@@ -700,13 +722,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showAIMessage(text) {
         if (!text) return;
 
-        aiSpeechBubble.textContent = text;
-        aiSpeechBubble.classList.add('visible');
+        console.log('Showing AI message:', text);
 
-        // Auto-hide user speech after AI responds
+        // Ensure the bubble content is set
+        aiSpeechBubble.textContent = text;
+
+        // Force DOM reflow to ensure animation works
+        void aiSpeechBubble.offsetWidth;
+
+        // Make visible with a slight delay to ensure DOM updates
         setTimeout(() => {
-            hideUserMessage();
-        }, 2000);
+            aiSpeechBubble.classList.add('visible');
+        }, 10);
+
+        // Auto-hide user speech when AI is speaking
+        hideUserMessage();
     }
 
     function hideAIMessage() {
