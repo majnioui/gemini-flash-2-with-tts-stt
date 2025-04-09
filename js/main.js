@@ -66,12 +66,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             onSpeechError
         );
 
-        // Add visual indicator to alert user to click microphone
-        setTimeout(() => {
-            if (!conversationActive) {
-                addMessage("Click 'Trigger Welcome' to start.", 'ai');
-            }
-        }, 1000);
+        // No longer showing initial message
+        // setTimeout(() => {
+        //     if (!conversationActive) {
+        //         addMessage("Click 'Trigger Welcome' to start.", 'ai');
+        //     }
+        // }, 1000);
 
         checkIPv6Environment();
     }
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function checkSecureContext() {
         if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             console.warn('Page not loaded over HTTPS. Speech recognition may not work.');
-            addMessage("For full functionality, this application should be accessed over HTTPS.", 'ai');
+            // No longer showing: addMessage("For full functionality, this application should be accessed over HTTPS.", 'ai');
         }
     }
 
@@ -105,15 +105,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.location.hostname === '[::1]' || window.location.hostname === '[:::]' || window.location.hostname === '[::]') {
             console.warn('Running on IPv6 localhost. Speech recognition may not work as expected in this environment.');
 
-            // Just log a warning without switching to text input mode
+            // Just log a warning without switching to text input mode or showing messages
             const originalTriggerWelcome = triggerWelcome;
             triggerWelcome = function() {
                 originalTriggerWelcome();
-
-                setTimeout(() => {
-                    console.log('Warning about IPv6 environment limitations');
-                    addMessage("Speech recognition may have issues in this IPv6 environment. Try using a different network connection if you experience problems.", 'ai');
-                }, 2000);
+                console.log('IPv6 environment detected, might affect speech recognition');
+                // No longer showing: addMessage("Speech recognition may have issues in this IPv6 environment. Try using a different network connection if you experience problems.", 'ai');
             };
         }
     }
@@ -351,8 +348,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         micBtn.classList.remove('listening');
         updateSpeechStatus('Click microphone to speak');
 
-        // Add reset confirmation
-        addMessage("Conversation reset. Click 'Trigger Welcome' to start a new conversation.", 'ai');
+        // No longer showing reset confirmation message
+        // addMessage("Conversation reset. Click 'Trigger Welcome' to start a new conversation.", 'ai');
     }
 
     function toggleListening() {
@@ -408,10 +405,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         speechRecognitionFailures++;
         console.log(`Speech recognition failure #${speechRecognitionFailures}`);
 
-        // After multiple failures, show a helpful message but don't switch to text input
+        // Don't show any error messages in the chat
+        // After multiple failures, just log the issue
         if (speechRecognitionFailures >= 3) {
-            console.log('Multiple recognition failures - alerting user');
-            addMessage("Speech recognition is having trouble. Please check your microphone and ensure you're in a quiet environment.", 'ai');
+            console.log('Multiple recognition failures detected');
+            // No longer showing: addMessage("Speech recognition is having trouble. Please check your microphone and ensure you're in a quiet environment.", 'ai');
         }
     }
 
@@ -575,8 +573,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 processingIndicator.remove();
             }
 
-            // Show error message
-            addMessage("I'm having trouble processing your request right now. Please try again.", 'ai');
+            // Don't show error messages to the user
+            // Instead, silently continue or retry
+            console.log('Speech processing error, attempting to recover silently');
 
             // Auto-restart listening even in case of error if enabled in config
             if (config.autoListening) {
@@ -620,9 +619,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.avatar.stopTalking();
         }
 
-        // Show a user-friendly error message
+        // Show a user-friendly error message (only in status bar, not in chat)
         let errorMessage = 'Error with speech recognition. Try again.';
-        let shouldShowErrorInChat = true; // Whether to show error in chat
 
         switch(error) {
             case 'network':
@@ -639,28 +637,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 break;
             case 'no-speech':
                 errorMessage = 'No speech detected. Please try again.';
-                // For no-speech errors, show fewer messages to avoid spam
-                shouldShowErrorInChat = (speechRecognitionFailures <= 1);
                 break;
             case 'no-speech-reset':
                 errorMessage = 'Speech recognition reset due to silence.';
                 // Don't increment failure count for resets
                 speechRecognitionFailures--;
-                shouldShowErrorInChat = false;
                 break;
             case 'no-speech-expected':
                 // This is a normal silence after a conversation ending phrase
                 errorMessage = 'Waiting for next question...';
-                // Don't show in chat and don't count as a failure
-                shouldShowErrorInChat = false;
                 // Actually decrease the failure count to make system more forgiving
                 speechRecognitionFailures = Math.max(0, speechRecognitionFailures - 1);
                 break;
             case 'no-speech-after-response':
                 // This is silence right after AI responded, which is normal
                 errorMessage = 'Ready for your next question';
-                // Don't show in chat and don't count as a failure
-                shouldShowErrorInChat = false;
                 // Don't increment failure count for this case
                 return; // Just exit early without updating UI
             case 'not-supported':
@@ -678,6 +669,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
         }
 
+        // Only update the status bar, don't show in chat
         updateSpeechStatus(errorMessage, '#f72585');
 
         // Count consecutive errors, but don't count certain error types
@@ -685,25 +677,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             speechRecognitionFailures++;
         }
 
-        // Show error in chat for first error only to avoid spam
-        if (shouldShowErrorInChat && speechRecognitionFailures <= 2) {
-            addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
-        }
+        // No longer show errors in chat at all
+        // Removed: addMessage("I'm having trouble hearing you: " + errorMessage, 'ai');
 
-        // Provide a helpful tip after multiple failures but don't switch to text input
-        if (speechRecognitionFailures >= 4) {
+        // Provide a hint after several failures but don't show an error message
+        if (speechRecognitionFailures >= 5) {
+            // Try restarting speech recognition after a longer delay
             setTimeout(() => {
-                addMessage("Speech recognition is having issues. Try speaking more clearly or ensure your microphone is working properly.", 'ai');
-
-                // Try restarting speech recognition after a longer delay
-                setTimeout(() => {
-                    if (config.continuousListening && window.stt) {
-                        console.log('Attempting to restart continuous listening after multiple failures');
-                        window.stt.setContinuous(true);
-                        startSpeechRecognition();
-                    }
-                }, 3000);
-            }, 500);
+                if (config.continuousListening && window.stt) {
+                    console.log('Attempting to restart continuous listening after multiple failures');
+                    window.stt.setContinuous(true);
+                    startSpeechRecognition();
+                }
+            }, 3000);
         }
 
         // Reset status text after a few seconds, unless we have too many failures
