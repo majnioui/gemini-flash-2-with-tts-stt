@@ -443,3 +443,30 @@ button {
         opacity: 0.7;
     }
 }
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.company-logo {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+}
+
+/* For smaller screens, adjust logo size */
+@media (max-width: 768px) {
+    .company-logo {
+        height: 30px;
+    }
+
+    .logo-container {
+        gap: 10px;
+    }
+
+    .logo-container h1 {
+        font-size: 1.2rem;
+    }
+}
