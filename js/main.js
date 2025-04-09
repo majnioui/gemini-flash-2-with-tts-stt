@@ -2,6 +2,15 @@
  * Main application script
  */
 document.addEventListener('DOMContentLoaded', async () => {
+    // Configuration
+    const config = {
+        autoListening: true,           // Auto restart listening after responses
+        continuousListening: true,     // Keep mic open continuously when possible
+        listeningDelay: 500,           // Delay in ms before auto-listening starts
+        silenceThreshold: 3000,        // Time in ms to wait for speech to complete (longer = less cutting off)
+        debugLogging: true             // Enable additional debug logs
+    };
+
     // DOM Elements
     const welcomeBtn = document.getElementById('welcomeBtn');
     const resetBtn = document.getElementById('resetBtn');
@@ -29,6 +38,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Check if the page is loaded over HTTPS
         checkSecureContext();
+
+        // Configure speech recognition
+        if (window.stt) {
+            // Set silence threshold to prevent premature cutting off
+            window.stt.setSilenceThreshold(config.silenceThreshold);
+        }
 
         // Try several approaches to check microphone permissions
         tryCheckMicrophonePermission();
@@ -208,7 +223,39 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        toggleListening();
+        // In continuous mode, clicking mic toggles continuous listening
+        if (config.continuousListening && window.stt) {
+            if (window.stt.continuous) {
+                // Turn off continuous mode
+                window.stt.setContinuous(false);
+
+                // Stop listening if currently active
+                if (window.stt.isListening) {
+                    window.stt.stop();
+                }
+
+                updateSpeechStatus('Continuous listening disabled', '#f72585');
+                setTimeout(() => {
+                    updateSpeechStatus('Click microphone to speak');
+                }, 2000);
+
+                addMessage("Continuous listening mode disabled. Click the microphone each time you want to speak.", 'ai');
+            } else {
+                // Turn on continuous mode
+                window.stt.setContinuous(true);
+
+                // Start listening immediately
+                if (!window.stt.isListening) {
+                    startSpeechRecognition();
+                }
+
+                updateSpeechStatus('Listening continuously...', '#4cc9f0');
+                addMessage("Continuous listening mode enabled. I'll keep listening for your questions.", 'ai');
+            }
+        } else {
+            // Regular toggle behavior
+            toggleListening();
+        }
     }
 
     function tryGetMicrophoneAccess() {
@@ -267,7 +314,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.tts.speak(welcomeMessage);
 
         // Prompt user to use microphone after welcome
-        updateSpeechStatus('Click microphone to speak');
+        updateSpeechStatus('Listening...');
+
+        // Enable continuous mode if configured
+        if (config.continuousListening && window.stt) {
+            window.stt.setContinuous(true);
+
+            // Start listening after welcome message
+            setTimeout(() => {
+                if (!window.stt.isListening) {
+                    console.log('Starting continuous listening after welcome');
+                    startSpeechRecognition();
+                    updateSpeechStatus('Listening continuously...', '#4cc9f0');
+                }
+            }, 1000);
+        }
     }
 
     function resetConversation() {
@@ -280,6 +341,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (window.stt.isListening) {
             window.stt.stop();
+        }
+
+        // Disable continuous mode
+        if (window.stt) {
+            window.stt.setContinuous(false);
         }
 
         // Clear all messages
@@ -449,6 +515,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             console.warn('Avatar controller not available for animation');
         }
+
+        // Automatically start listening again after a short delay if enabled in config
+        if (config.autoListening) {
+            setTimeout(() => {
+                if (conversationActive && !window.stt.isListening && !isProcessingResponse) {
+                    console.log('Auto-starting listening after AI response');
+                    updateSpeechStatus('Listening...', '#4cc9f0');
+                    startSpeechRecognition();
+                }
+            }, config.listeningDelay);
+        } else {
+            // If auto-listening is disabled, update status to prompt manual click
+            updateSpeechStatus('Click microphone to speak');
+        }
     }
 
     function onListeningStart() {
@@ -463,6 +543,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.avatar) {
             console.log('Starting user listening animation');
             window.avatar.startTalking();
+        }
+
+        // Add event handlers for speech detection visual feedback
+        if (window.stt) {
+            const originalSpeechStart = window.stt.recognition.onspeechstart;
+            window.stt.recognition.onspeechstart = (event) => {
+                // Call the original handler
+                if (originalSpeechStart) originalSpeechStart.call(window.stt.recognition, event);
+
+                // Update UI to show active speech
+                updateSpeechStatus('Listening: Speech detected!', '#00ff00');
+                micBtn.classList.add('active-speech');
+            };
+
+            const originalSpeechEnd = window.stt.recognition.onspeechend;
+            window.stt.recognition.onspeechend = (event) => {
+                // Call the original handler
+                if (originalSpeechEnd) originalSpeechEnd.call(window.stt.recognition, event);
+
+                // Update UI to show waiting state
+                updateSpeechStatus('Listening: Waiting for more...', '#4cc9f0');
+                micBtn.classList.remove('active-speech');
+
+                // Show countdown of silence threshold
+                const silenceTime = window.stt.silenceThreshold;
+                const startTime = Date.now();
+
+                const updateCountdown = () => {
+                    const elapsed = Date.now() - startTime;
+                    const remaining = Math.max(0, silenceTime - elapsed);
+
+                    if (remaining > 0 && !window.stt.isSpeaking) {
+                        const seconds = (remaining / 1000).toFixed(1);
+                        updateSpeechStatus(`Listening: Waiting ${seconds}s for more...`, '#4cc9f0');
+                        requestAnimationFrame(updateCountdown);
+                    }
+                };
+
+                requestAnimationFrame(updateCountdown);
+            };
         }
     }
 
@@ -519,6 +639,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Show error message
             addMessage("I'm having trouble processing your request right now. Please try again.", 'ai');
+
+            // Auto-restart listening even in case of error if enabled in config
+            if (config.autoListening) {
+                setTimeout(() => {
+                    if (conversationActive && !window.stt.isListening && !isProcessingResponse) {
+                        console.log('Auto-starting listening after error');
+                        updateSpeechStatus('Listening...', '#4cc9f0');
+                        startSpeechRecognition();
+                    }
+                }, config.listeningDelay + 500); // Add a bit more delay after errors
+            } else {
+                updateSpeechStatus('Click microphone to speak');
+            }
         } finally {
             isProcessingResponse = false;
         }

@@ -8,6 +8,10 @@ class SpeechToText {
         this.recognition = null;
         this.isListening = false;
         this.transcript = '';
+        this.continuous = false;       // Whether recognition should run in continuous mode
+        this.silenceThreshold = 2000;  // Time in ms to wait for more speech before ending
+        this.silenceTimer = null;      // Timer for tracking speech silence
+        this.isSpeaking = false;       // Tracks if user is actively speaking
 
         // Callback functions for the main app to use
         this.onStartCallback = null;
@@ -64,9 +68,17 @@ class SpeechToText {
             }
 
             // Set recognition parameters
+            // Note: We don't set continuous=true because it causes issues in some browsers
+            // Instead, we manually restart recognition to achieve continuous listening
             this.recognition.continuous = false;
             this.recognition.interimResults = false;
             this.recognition.maxAlternatives = 1;
+
+            // Increase timeout values where possible
+            if ('speechRecognitionTimeout' in this.recognition) {
+                this.recognition.speechRecognitionTimeout = 10000; // 10 seconds
+            }
+
             this.recognition.lang = 'en-US';
 
             // Set up the core event handlers
@@ -86,12 +98,25 @@ class SpeechToText {
         this.recognition.onstart = () => {
             console.log('Recognition service has started listening');
             this.isListening = true;
+            this.isSpeaking = false;
+            // Clear any existing silence timer
+            if (this.silenceTimer) {
+                clearTimeout(this.silenceTimer);
+                this.silenceTimer = null;
+            }
             if (this.onStartCallback) this.onStartCallback();
         };
 
         // When speech begins to be detected
         this.recognition.onspeechstart = () => {
             console.log('Speech has been detected');
+            this.isSpeaking = true;
+
+            // Clear any existing silence timer
+            if (this.silenceTimer) {
+                clearTimeout(this.silenceTimer);
+                this.silenceTimer = null;
+            }
 
             // Trigger talking animation when speech is detected
             if (window.avatar) {
@@ -103,16 +128,38 @@ class SpeechToText {
         // When speech ends
         this.recognition.onspeechend = () => {
             console.log('Speech has ended (stopped being detected)');
+            this.isSpeaking = false;
 
-            // Stop talking animation when speech ends
-            if (window.avatar) {
-                console.log('STT: Stopping talking animation when speech ends');
-                window.avatar.stopTalking();
+            // Instead of immediately ending recognition, start a timer to wait for more speech
+            // This helps prevent premature cutoffs
+            if (this.silenceTimer) {
+                clearTimeout(this.silenceTimer);
             }
+
+            this.silenceTimer = setTimeout(() => {
+                console.log(`Silence timer expired after ${this.silenceThreshold}ms - finalizing speech`);
+                // If we're in continuous mode, don't process yet - wait for proper results
+                if (!this.continuous && this.recognition) {
+                    try {
+                        this.recognition.stop();
+                    } catch (e) {
+                        console.error('Error stopping recognition:', e);
+                    }
+                }
+            }, this.silenceThreshold);
+
+            // Keep animation for a bit longer, it'll be stopped when recognition truly ends
+            // or when results are processed
         };
 
         // When results are available
         this.recognition.onresult = (event) => {
+            // Clear silence timer when we get results
+            if (this.silenceTimer) {
+                clearTimeout(this.silenceTimer);
+                this.silenceTimer = null;
+            }
+
             console.log('Recognition results received');
             const result = event.results[0][0].transcript;
             const confidence = event.results[0][0].confidence;
@@ -120,14 +167,54 @@ class SpeechToText {
             console.log(`Heard: "${result}" (confidence: ${confidence.toFixed(2)})`);
             this.transcript = result;
 
+            // Stop talking animation when speech ends and results are processed
+            if (window.avatar) {
+                console.log('STT: Stopping talking animation when results received');
+                window.avatar.stopTalking();
+            }
+
             if (this.onResultCallback) this.onResultCallback(result);
+
+            // In continuous mode, we need to manually restart after results
+            if (this.continuous && !this.recognition.continuous) {
+                console.log('Continuous mode active - will restart recognition automatically');
+                // Let the result be processed before restarting
+                setTimeout(() => {
+                    if (!this.isListening) {
+                        this.start();
+                    }
+                }, 1000);
+            }
         };
 
         // When recognition service has disconnected
         this.recognition.onend = () => {
             console.log('Recognition service disconnected');
             this.isListening = false;
+            this.isSpeaking = false;
+
+            // Clear any existing silence timer
+            if (this.silenceTimer) {
+                clearTimeout(this.silenceTimer);
+                this.silenceTimer = null;
+            }
+
+            // Stop talking animation if it's still active
+            if (window.avatar) {
+                console.log('STT: Stopping talking animation when recognition ends');
+                window.avatar.stopTalking();
+            }
+
             if (this.onEndCallback) this.onEndCallback();
+
+            // In continuous mode, we need to restart the recognition when it ends
+            if (this.continuous && !this.recognition.continuous) {
+                console.log('Continuous mode active - restarting recognition');
+                // Add a small delay to avoid rapid restarts
+                setTimeout(() => {
+                    this.start();
+                }, 300);
+            }
         };
 
         // Handle errors
@@ -136,6 +223,17 @@ class SpeechToText {
             this.isListening = false;
 
             if (this.onErrorCallback) this.onErrorCallback(event.error);
+
+            // In continuous mode, try to restart after certain errors
+            if (this.continuous && !this.recognition.continuous) {
+                if (event.error !== 'not-allowed' && event.error !== 'audio-capture') {
+                    console.log('Continuous mode active - restarting after error');
+                    // Add a delay to avoid rapid restarts
+                    setTimeout(() => {
+                        this.start();
+                    }, 1000);
+                }
+            }
         };
 
         // No matches found
@@ -194,6 +292,16 @@ class SpeechToText {
                 console.error('Error aborting speech recognition:', error);
             }
         }
+    }
+
+    setSilenceThreshold(milliseconds) {
+        this.silenceThreshold = milliseconds;
+        console.log(`Speech silence threshold set to ${milliseconds}ms`);
+    }
+
+    setContinuous(continuous) {
+        this.continuous = continuous;
+        console.log(`Continuous listening mode ${continuous ? 'enabled' : 'disabled'}`);
     }
 
     setCallbacks(onStart, onResult, onEnd, onError) {
