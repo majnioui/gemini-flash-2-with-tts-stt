@@ -33,7 +33,7 @@ class GeminiAI {
                     ],
                     generationConfig: {
                         temperature: 0.7,
-                        maxOutputTokens: 100
+                        maxOutputTokens: 250
                     }
                 })
             });

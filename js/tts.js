@@ -8,6 +8,8 @@ class TextToSpeech {
         this.isSpeaking = false;
         this.onStartCallback = null;
         this.onEndCallback = null;
+        this.utteranceQueue = [];
+        this.currentUtterance = null;
         this.initVoices();
     }
 
@@ -54,29 +56,68 @@ class TextToSpeech {
         this.onStartCallback = onStart;
         this.onEndCallback = onEnd;
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.voice = this.voice;
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+        // Split into sentences for better speech synthesis
+        const sentences = this.splitIntoSentences(text);
+        this.utteranceQueue = [];
 
-        utterance.onstart = () => {
-            this.isSpeaking = true;
-            if (this.onStartCallback) this.onStartCallback();
-        };
+        // Create utterances for each chunk
+        for (let i = 0; i < sentences.length; i++) {
+            const sentence = sentences[i].trim();
+            if (!sentence) continue;
 
-        utterance.onend = () => {
-            this.isSpeaking = false;
-            if (this.onEndCallback) this.onEndCallback();
-        };
+            const utterance = new SpeechSynthesisUtterance(sentence);
+            utterance.voice = this.voice;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
 
-        this.synth.speak(utterance);
+            // Only add callbacks to the first and last utterances
+            if (i === 0) {
+                utterance.onstart = () => {
+                    this.isSpeaking = true;
+                    if (this.onStartCallback) this.onStartCallback();
+                };
+            }
+
+            if (i === sentences.length - 1) {
+                utterance.onend = () => {
+                    this.isSpeaking = false;
+                    this.utteranceQueue = [];
+                    this.currentUtterance = null;
+                    if (this.onEndCallback) this.onEndCallback();
+                };
+            } else {
+                // For other utterances, just queue the next one
+                utterance.onend = () => {
+                    this.speakNextInQueue();
+                };
+            }
+
+            this.utteranceQueue.push(utterance);
+        }
+
+        // Start speaking the first utterance
+        this.speakNextInQueue();
+    }
+
+    speakNextInQueue() {
+        if (this.utteranceQueue.length > 0) {
+            this.currentUtterance = this.utteranceQueue.shift();
+            this.synth.speak(this.currentUtterance);
+        }
+    }
+
+    splitIntoSentences(text) {
+        // Split on sentence boundaries while keeping punctuation
+        return text.split(/(?<=[.!?])\s+/);
     }
 
     stop() {
         if (this.synth) {
             this.synth.cancel();
             this.isSpeaking = false;
+            this.utteranceQueue = [];
+            this.currentUtterance = null;
         }
     }
 
